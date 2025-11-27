@@ -28,12 +28,13 @@ class ControladorAviones:
         self.mostrar_historial = False
         self.movimiento_activo = True
         self.distancia_colision = 15
+        self.umbral = 15  # Umbral de riesgo de colisión en NM
         
         # No generar aviones aun: pedir al usuario las entradas al iniciar
         self.input_mode = True
         # campos: lista de [clave, valor_str]
         # Todos los campos vacíos al inicio
-        self.param_fields = [['Número de aviones', ''], ['Rango X', ''], ['Rango Y', '']]
+        self.param_fields = [['Número de aviones', ''], ['Umbral de NM', '']]
         self.input_index = 0
         self.input_buffer = ''
     
@@ -76,10 +77,15 @@ class ControladorAviones:
                     if evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                         try:
                             n = int(self.param_fields[0][1])
+                            umbral = float(self.param_fields[1][1])
 
                             # Validaciones básicas
                             if n <= 0:
                                 raise ValueError("n debe ser mayor que 0")
+                            if umbral <= 0:
+                                raise ValueError("Umbral de NM debe ser mayor que 0")
+
+                            self.umbral = umbral  # Guardar umbral
 
                             # Ignorar los rangos ingresados; siempre usar 120x120 para evitar distorsión
                             # Pero regenerar aviones con la cantidad especificada
@@ -89,7 +95,7 @@ class ControladorAviones:
                             self.modelo.inicial_cantidad = n
                             self.modelo.colisiones_evitadas = 0
                             self.modelo.colisiones_reportadas = False
-                            print(f"Parámetros aplicados: n={n}, plano fijo en 120x120")
+                            print(f"Parámetros aplicados: n={n}, plano fijo en 120x120, umbral={umbral}")
 
                             # Salir modo input y comenzar simulación
                             self.input_mode = False
@@ -122,7 +128,7 @@ class ControladorAviones:
                 if evento.key == pygame.K_ESCAPE:
                     # Volver a modo de entrada de parámetros
                     self.input_mode = True
-                    self.param_fields = [['Número de aviones', ''], ['Rango X', ''], ['Rango Y', '']]
+                    self.param_fields = [['Número de aviones', ''], ['Umbral de NM', '']]
                     self.input_index = 0
                     self.modelo.limpiar_aviones()
                     print("Regresando a entrada de parámetros...")
@@ -169,7 +175,7 @@ class ControladorAviones:
             # Pasamos el estado de input_mode e índices para que la vista pinte los valores en el panel
             self.vista.dibujar(aviones, estadisticas, pareja_cercana, stats_algoritmo,
                               self.mostrar_historial, False,
-                              input_mode=self.input_mode, campos=campos, input_index=self.input_index)
+                              input_mode=self.input_mode, campos=campos, input_index=self.input_index, umbral=self.umbral)
             
             # Controlar FPS
             self.vista.tick(self.fps)

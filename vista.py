@@ -8,7 +8,7 @@ import math
 class VistaPlanoCartesiano:
     """Gestiona la visualización del plano cartesiano con pygame."""
     
-    def __init__(self, ancho=900, alto=700, rango_x=120, rango_y=120, left_panel_width=320):
+    def __init__(self, ancho=900, alto=700, rango_x=120, rango_y=120, left_panel_width=200):
         """
         Inicializa la vista.
         
@@ -25,7 +25,7 @@ class VistaPlanoCartesiano:
         self.rango_x = 120
         self.rango_y = 120
         # Tamaño del panel izquierdo (entradas / información)
-        self.left_panel_width = left_panel_width
+        self.left_panel_width = left_panel_width = 320
         # Área del plano a la derecha
         self.plano_rect = pygame.Rect(self.left_panel_width, 0, self.ancho - self.left_panel_width, self.alto)
 
@@ -66,6 +66,7 @@ class VistaPlanoCartesiano:
         self.fuente_grande = pygame.font.Font(None, 28)
         self.fuente_normal = pygame.font.Font(None, 20)
         self.fuente_pequeña = pygame.font.Font(None, 16)
+        self.fuente_mini = pygame.font.Font(None, 10)
     
     def coordenada_pantalla(self, x_cart, y_cart):
         """Convierte coordenadas cartesianas a coordenadas de pantalla."""
@@ -85,19 +86,19 @@ class VistaPlanoCartesiano:
                  (self.centro_x, self.plano_rect.y),
                  (self.centro_x, self.plano_rect.y + self.plano_rect.height), 2)
         
-        # Marcas cada 20 unidades (blanco)
-        for i in range(-int(self.rango), int(self.rango) + 1, 20):
+        # Marcas cada 10 unidades hasta 100 (blanco)
+        for i in range(-100, 101, 10):
             if i != 0:
                 # Marcas en X
                 x, y = self.coordenada_pantalla(i, 0)
                 pygame.draw.line(self.pantalla, self.BLANCO, (x, y - 4), (x, y + 4), 1)
-                texto = self.fuente_pequeña.render(str(i), True, self.BLANCO)
+                texto = self.fuente_normal.render(str(i), True, self.BLANCO)
                 self.pantalla.blit(texto, (x - 10, y + 8))
-                
+
                 # Marcas en Y
                 x, y = self.coordenada_pantalla(0, i)
                 pygame.draw.line(self.pantalla, self.BLANCO, (x - 4, y), (x + 4, y), 1)
-                texto = self.fuente_pequeña.render(str(i), True, self.BLANCO)
+                texto = self.fuente_normal.render(str(i), True, self.BLANCO)
                 self.pantalla.blit(texto, (x - 20, y - 8))
         
         # Etiquetas de ejes
@@ -253,7 +254,7 @@ class VistaPlanoCartesiano:
                 self.pantalla.blit(linea, (x_pad, y_pos))
                 y_pos += 20
     
-    def dibujar(self, aviones, estadisticas, pareja_cercana=None, stats_algoritmo=None, mostrar_historial=False, colision=False, input_mode=False, campos=None, input_index=0):
+    def dibujar(self, aviones, estadisticas, pareja_cercana=None, stats_algoritmo=None, mostrar_historial=False, colision=False, input_mode=False, campos=None, input_index=0, umbral=15):
         """Dibuja la escena completa."""
         # Fondo general (negro)
         self.pantalla.fill(self.NEGRO)
@@ -292,8 +293,11 @@ class VistaPlanoCartesiano:
         
         for idx, avion in enumerate(aviones):
             x, y = avion.obtener_posicion()
-            color = self.colores_aviones[idx % len(self.colores_aviones)]
-            resaltado = avion.id_avion in ids_pareja
+            if avion.id_avion in ids_pareja and pareja_cercana and pareja_cercana.distancia <= umbral:
+                color = self.ROJO
+            else:
+                color = self.AMARILLO
+            resaltado = False  # No cambiar tamaño, solo color
             self.dibujar_avion(x, y, color, avion.id_avion, avion.angulo, resaltado)
         
         # Dibuja línea de pareja más cercana

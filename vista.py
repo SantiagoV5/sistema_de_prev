@@ -126,27 +126,10 @@ class VistaPlanoCartesiano:
         """
         x_pantalla, y_pantalla = self.coordenada_pantalla(x, y)
         
-        # Dibuja triángulo (avión) rotado según ángulo
-        tamaño = 15 if resaltado else 12
-        radianes = math.radians(angulo + 90)
-        
-        # Vértices del triángulo
-        p1 = (
-            x_pantalla + tamaño * math.cos(radianes),
-            y_pantalla + tamaño * math.sin(radianes)
-        )
-        p2 = (
-            x_pantalla + tamaño * math.cos(radianes + 2.094),
-            y_pantalla + tamaño * math.sin(radianes + 2.094)
-        )
-        p3 = (
-            x_pantalla + tamaño * math.cos(radianes + 4.189),
-            y_pantalla + tamaño * math.sin(radianes + 4.189)
-        )
-        
-        pygame.draw.polygon(self.pantalla, color, [p1, p2, p3])
-        grosor = 3 if resaltado else 2
-        pygame.draw.polygon(self.pantalla, self.NEGRO, [p1, p2, p3], grosor)
+        # Dibuja punto (círculo pequeño) en lugar de triángulo
+        radio = 4 if resaltado else 3
+        pygame.draw.circle(self.pantalla, color, (x_pantalla, y_pantalla), radio)
+        pygame.draw.circle(self.pantalla, self.NEGRO, (x_pantalla, y_pantalla), radio, 1)
         
         # Etiqueta con ID y coordenadas
         texto = self.fuente_pequeña.render(f"A{id_avion}: ({x:.1f}, {y:.1f})", True, color)

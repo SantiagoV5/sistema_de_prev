@@ -43,6 +43,12 @@ class ControladorAviones:
         self.input_buffer = ''
         # Mensaje de error para mostrar en pantalla cuando la entrada es inválida
         self.input_error_msg = None
+        
+        # Campos para agregar/eliminar aviones (después de iniciar simulación)
+        self.extra_fields = [['AGREGAR AVIONES', ''], ['ELIMINAR AVIONES', '']]
+        self.extra_index = -1  # -1 significa no está activo
+        self.arrastrando_scroll = False  # Para detectar arrastre de scroll bar parejas
+        self.arrastrando_scroll_control = False  # Para detectar arrastre de scroll bar control
     
     def manejar_eventos(self):
         """Maneja los eventos del usuario."""
@@ -51,12 +57,59 @@ class ControladorAviones:
                 return False
             
             elif evento.type == pygame.MOUSEBUTTONDOWN:
-                # Si panel de parejas está abierto, permitir cerrar con click fuera
+                # Si panel de parejas está abierto, detectar click en barra de scroll
                 if self.vista.mostrar_panel_parejas and evento.button == 1:
                     mx, my = evento.pos
-                    # El panel está centrado, si hace click afuera lo cerramos
-                    # (simplemente toggle el estado)
-                    # Para click en el botón "Ver todo", ya lo manejamos abajo
+                    # Verificar si clickeó en la barra de scroll
+                    barra_x = self.vista.ancho - 12
+                    panel_x = self.vista.ancho - self.vista.panel_parejas_ancho
+                    sep_y = 28
+                    contenido_y = sep_y + 8
+                    area_scroll_alto = self.vista.alto - 5 - contenido_y
+                    
+                    if barra_x <= mx <= self.vista.ancho and contenido_y <= my <= contenido_y + area_scroll_alto:
+                        self.arrastrando_scroll = True
+                        return True
+                    return True
+                
+                # Detectar click en barra de scroll de control (sección agregar/eliminar)
+                if not self.input_mode and evento.button == 1:
+                    mx, my = evento.pos
+                    y_control_inicio = self.vista.alto - 240
+                    
+                    # Verificar si clickeó en la barra de scroll de control
+                    scrollbar_x = self.vista.left_panel_width - 12
+                    control_area_height = 180
+                    
+                    if (my >= y_control_inicio and 
+                        scrollbar_x <= mx <= self.vista.left_panel_width and 
+                        my <= y_control_inicio + control_area_height):
+                        self.arrastrando_scroll_control = True
+                        return True
+                
+                # Si NO estamos en input_mode, detectar clicks en campos extra
+                if not self.input_mode and evento.button == 1:
+                    mx, my = evento.pos
+                    if mx <= self.vista.left_panel_width:
+                        # Calcular posición de campos extras (igual a como se renderizan en vista.py)
+                        x_pad = 10
+                        box_w = max(60, self.vista.left_panel_width - 2 * x_pad - 30)
+                        box_h = 40
+                        label_height = 20
+                        spacing = 70
+                        # Los campos extras empiezan en alto - 190, PERO suma 28 después del título
+                        y_pos = self.vista.alto - 190 + 28  # Importante: suma 28 como en vista.py
+                        
+                        for i, (clave, valor) in enumerate(self.extra_fields):
+                            # Etiqueta está en y_pos
+                            etiqueta_y = y_pos
+                            # Caja está debajo de la etiqueta
+                            rect_y = y_pos + label_height + 2
+                            rect = pygame.Rect(x_pad, rect_y, box_w, box_h)
+                            if rect.collidepoint(mx, my):
+                                self.extra_index = i
+                                return True
+                            y_pos += spacing
                     return True
                 
                 # Si está el formulario abierto, permitir hacer click en las cajas para enfocar
@@ -94,8 +147,71 @@ class ControladorAviones:
                     mx, my = evento.pos
                     if mx <= self.vista.left_panel_width:
                         delta = 20 if evento.button == 5 else -20
-                        self.vista.left_panel_scroll = max(0, self.vista.left_panel_scroll + delta)
+                        
+                        # Detectar si estamos en la sección de control (abajo del panel)
+                        y_control_inicio = self.vista.alto - 240
+                        
+                        if my >= y_control_inicio:
+                            # Scroll en sección de control
+                            self.vista.extra_fields_scroll = max(0, self.vista.extra_fields_scroll + delta)
+                        else:
+                            # Scroll en sección de parejas (arriba)
+                            self.vista.left_panel_scroll = max(0, self.vista.left_panel_scroll + delta)
                         return True
+
+            elif evento.type == pygame.MOUSEBUTTONUP:
+                # Soltar arrastre de scroll
+                if evento.button == 1:
+                    self.arrastrando_scroll = False
+                    self.arrastrando_scroll_control = False
+                    return True
+
+            elif evento.type == pygame.MOUSEMOTION:
+                # Si estamos arrastrando la barra de scroll de control
+                if self.arrastrando_scroll_control:
+                    mx, my = evento.pos
+                    y_control_inicio = self.vista.alto - 240
+                    control_area_height = 180
+                    
+                    # Calcular nueva posición del scroll basado en el mouse
+                    if control_area_height > 0:
+                        # Mapear posición del mouse a scroll
+                        relative_y = my - y_control_inicio
+                        relative_y = max(0, min(relative_y, control_area_height))
+                        
+                        # Estimar máximo scroll basado en cantidad de campos extra
+                        extra_fields = self.extra_fields if hasattr(self, 'extra_fields') else []
+                        if len(extra_fields) > 0:
+                            spacing = 75
+                            total_height_needed = len(extra_fields) * spacing + 35
+                            max_scroll = max(0, total_height_needed - control_area_height + 40)
+                            
+                            if max_scroll > 0:
+                                self.vista.extra_fields_scroll = int((relative_y / control_area_height) * max_scroll)
+                    return True
+                
+                # Si estamos arrastrando la barra de scroll de parejas
+                if self.arrastrando_scroll and self.vista.mostrar_panel_parejas:
+                    mx, my = evento.pos
+                    sep_y = 28
+                    contenido_y = sep_y + 8
+                    area_scroll_alto = self.vista.alto - 5 - contenido_y
+                    
+                    # Calcular nueva posición del scroll basado en el mouse
+                    if area_scroll_alto > 0:
+                        # Mapear posición del mouse a scroll
+                        relative_y = my - contenido_y
+                        relative_y = max(0, min(relative_y, area_scroll_alto))
+                        
+                        # Estimar máximo scroll basado en cantidad de parejas
+                        # (necesitamos saber cuántas parejas hay - lo pasamos desde actualizar)
+                        parejas_riesgo = getattr(self, 'parejas_riesgo', [])
+                        total_parejas = len([p for p in parejas_riesgo if p and p.punto1 and p.punto2])
+                        alto_fila = 18
+                        total_scroll = max(1, total_parejas * alto_fila - area_scroll_alto)
+                        
+                        self.vista.panel_parejas_scroll = int((relative_y / area_scroll_alto) * total_scroll)
+                    return True
 
             # Manejar redimensionamiento de ventana (maximizar / cambiar tamaño)
             elif evento.type == pygame.VIDEORESIZE:
@@ -209,6 +325,45 @@ class ControladorAviones:
                     self.vista.panel_parejas_scroll = 0
                     print("Regresando a entrada de parámetros...")
                     return True
+                
+                # Si estamos editando campos extras (agregar/eliminar aviones)
+                if self.extra_index >= 0:
+                    # ENTER para aplicar
+                    if evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                        try:
+                            if self.extra_index == 0:  # AGREGAR
+                                cantidad = int(self.extra_fields[0][1])
+                                if cantidad > 0:
+                                    self.modelo.generar_aviones_aleatorios(cantidad=cantidad, distancia_minima=5)
+                                    self.extra_fields[0][1] = ''  # Limpiar campo
+                                    print(f"Agregados {cantidad} aviones")
+                            elif self.extra_index == 1:  # ELIMINAR
+                                cantidad = int(self.extra_fields[1][1])
+                                if cantidad > 0:
+                                    self._eliminar_aviones(cantidad)
+                                    self.extra_fields[1][1] = ''  # Limpiar campo
+                                    print(f"Eliminados {cantidad} aviones")
+                        except Exception as e:
+                            print(f"Error: {e}")
+                        return True
+                    
+                    # BACKSPACE
+                    if evento.key == pygame.K_BACKSPACE:
+                        cur = self.extra_fields[self.extra_index][1]
+                        self.extra_fields[self.extra_index][1] = cur[:-1]
+                        return True
+                    
+                    # TAB cambia campo
+                    if evento.key == pygame.K_TAB:
+                        self.extra_index = (self.extra_index + 1) % len(self.extra_fields)
+                        return True
+                    
+                    # Texto
+                    char = evento.unicode
+                    if char and char.isprintable():
+                        self.extra_fields[self.extra_index][1] += char
+                    return True
+                
                 # Controles de zoom: '+' (o '=') para acercar, '-' para alejar
                 if not self.input_mode:
                     if evento.key in (pygame.K_EQUALS, pygame.K_KP_PLUS):
@@ -271,6 +426,17 @@ class ControladorAviones:
         """Obtiene las estadísticas del sistema."""
         return self.modelo.obtener_estadisticas()
     
+    def _eliminar_aviones(self, cantidad):
+        """Elimina una cantidad de aviones aleatorios."""
+        aviones_list = list(self.modelo.aviones.keys())
+        if cantidad > len(aviones_list):
+            cantidad = len(aviones_list)
+        
+        import random
+        ids_a_eliminar = random.sample(aviones_list, cantidad)
+        for id_avion in ids_a_eliminar:
+            del self.modelo.aviones[id_avion]
+    
     def ejecutar(self):
         """Ejecuta el bucle principal de la aplicación."""
         ejecutando = True
@@ -297,17 +463,18 @@ class ControladorAviones:
                 self.modelo.colisiones_reportadas = True
             
             # Dibujar (vista ahora incluye panel izquierdo donde mostramos entradas)
-            campos = [(f[0], f[1]) for f in self.param_fields]
-            # Pasamos el estado de input_mode e índices para que la vista pinte los valores en el panel
-            # Pasar mensaje de error (si existe) dentro de 'estadisticas' para que la vista lo pinte
             estadisticas = self.obtener_estadisticas()
             if self.input_error_msg:
                 # Insertar clave especial para mensaje de input
                 estadisticas['__input_error__'] = self.input_error_msg
 
+            campos = [(f[0], f[1]) for f in self.param_fields]
+            extra_fields = [(f[0], f[1]) for f in self.extra_fields]
+            
             kwargs = dict(input_mode=self.input_mode, campos=campos,
                           input_index=self.input_index, umbral=self.umbral,
-                          parejas_riesgo=parejas_riesgo)
+                          parejas_riesgo=parejas_riesgo, extra_fields=extra_fields,
+                          extra_index=self.extra_index)
             self.vista.dibujar(
                 aviones,
                 estadisticas,

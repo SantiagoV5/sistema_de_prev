@@ -155,16 +155,6 @@ class GestorAviones:
             'llamadas_recursivas': self.algoritmo.llamadas_recursivas
         }
     
-    def cambiar_direccion_avion(self, id_avion, nuevo_angulo):
-        """Cambia la dirección de un avión específico."""
-        if id_avion in self.aviones:
-            self.aviones[id_avion].cambiar_direccion(nuevo_angulo)
-    
-    def cambiar_velocidad_avion(self, id_avion, nueva_velocidad):
-        """Cambia la velocidad de un avión específico."""
-        if id_avion in self.aviones:
-            self.aviones[id_avion].cambiar_velocidad(nueva_velocidad)
-    
     def calcular_distancia_entre_aviones(self, id_avion1, id_avion2):
         """Calcula la distancia entre dos aviones."""
         if id_avion1 in self.aviones and id_avion2 in self.aviones:

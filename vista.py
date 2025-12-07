@@ -81,6 +81,8 @@ class VistaPlanoCartesiano:
         self.scroll_parejas = 0
         # Scroll interno para el panel izquierdo (lista de parejas)
         self.left_panel_scroll = 0
+        # Scroll para la sección de control (agregar/eliminar aviones)
+        self.extra_fields_scroll = 0
         # Panel lateral derecho para parejas
         self.panel_parejas_ancho = 280
         self.panel_parejas_scroll = 0
@@ -217,7 +219,7 @@ class VistaPlanoCartesiano:
         # No dibujamos la línea entre aviones para evitar distracciones;
         # los aviones ya se resaltan individualmente cuando forman la pareja.
     
-    def dibujar_interfaz(self, estadisticas, pareja_cercana=None, stats_algoritmo=None, colision=False, input_mode=False, campos=None, input_index=0, parejas_riesgo=None):
+    def dibujar_interfaz(self, estadisticas, pareja_cercana=None, stats_algoritmo=None, colision=False, input_mode=False, campos=None, input_index=0, parejas_riesgo=None, extra_fields=None, extra_index=-1):
         """Dibuja la interfaz de usuario en el panel izquierdo.
 
         Si `input_mode` es True, muestra cajas de texto para los campos proporcionados
@@ -305,10 +307,6 @@ class VistaPlanoCartesiano:
             except Exception:
                 lista_pares = []
 
-            # Mostrar un número limitado de parejas en el panel izquierdo
-            # Para evitar que la lista desborde el panel, mostramos cada pareja
-            # en su propia línea y limitamos la cantidad. Si hay más, mostramos
-            # un botón "VER TODO" que abre el panel lateral (scrolleable).
             info.append(f"PAREJAS EN RIESGO: {len(pr)}")
 
             # Dibujar la primera línea de info (Aviones)
@@ -317,11 +315,27 @@ class VistaPlanoCartesiano:
                 self.pantalla.blit(linea, (x_pad, y_pos))
                 y_pos += 26
 
+            # ═══════════════════════════════════════════════════════
+            # SECCIÓN 1: LISTA DE PAREJAS EN RIESGO (Scrolleable)
+            # ═══════════════════════════════════════════════════════
+            
+            # Línea separadora superior
+            pygame.draw.line(self.pantalla, (80, 80, 80), 
+                           (x_pad, y_pos), 
+                           (self.left_panel_width - x_pad, y_pos), 1)
+            y_pos += 8
+            
+            # Título de parejas
+            titulo_parejas = self.fuente_normal.render("PAREJAS EN RIESGO", True, (100, 200, 100))
+            self.pantalla.blit(titulo_parejas, (x_pad, y_pos))
+            y_pos += 26
+
             # Área visible para la lista de parejas en el panel izquierdo
-            controls_zone_height = 80
+            # IMPORTANTE: Dejar espacio para los campos extras abajo
+            altura_campos_extras = 200  # Espacio reservado para agregar/eliminar
             inicio_lista_y = y_pos
-            fin_lista_y = self.alto - controls_zone_height
-            alto_linea = 20
+            fin_lista_y = self.alto - altura_campos_extras - 10
+            alto_linea = 18
 
             # Contenido total y ajuste del scroll
             total_parejas = len(lista_pares)
@@ -330,6 +344,11 @@ class VistaPlanoCartesiano:
             # Limitar el scroll dentro de los rangos válidos
             max_scroll = max(0, contenido_alto - vista_alto)
             self.left_panel_scroll = min(max(self.left_panel_scroll, 0), max_scroll)
+
+            # Fondo para área de parejas
+            area_parejas = pygame.Rect(x_pad, inicio_lista_y, self.left_panel_width - 2*x_pad, vista_alto)
+            pygame.draw.rect(self.pantalla, (40, 40, 40), area_parejas)
+            pygame.draw.rect(self.pantalla, (80, 80, 80), area_parejas, 1)
 
             # Activar clip para el área de la lista y dibujar cada pareja con offset de scroll
             lista_rect = pygame.Rect(0, inicio_lista_y, self.left_panel_width, vista_alto)
@@ -349,28 +368,133 @@ class VistaPlanoCartesiano:
                 thumb_h = max(15, int(vista_alto * (vista_alto / max(contenido_alto, 1))))
                 thumb_y = inicio_lista_y + int((self.left_panel_scroll / max_scroll) * (vista_alto - thumb_h)) if max_scroll > 0 else inicio_lista_y
                 thumb_rect = pygame.Rect(barra_x, thumb_y, 8, thumb_h)
-                pygame.draw.rect(self.pantalla, (100, 150, 255), thumb_rect)
+                pygame.draw.rect(self.pantalla, (120, 180, 255), thumb_rect)
+                pygame.draw.rect(self.pantalla, (150, 200, 255), thumb_rect, 1)
 
-            # Muestra un pequeño hint si hay parejas y el contenido quedó scrolleable
-            if total_parejas > 0:
-                hint_y = fin_lista_y + 6
-                hint = self.fuente_pequeña.render("Rueda del mouse o ↑↓ para desplazarse", True, (180, 180, 180))
+            # Hint para área de parejas
+            if total_parejas > 0 and vista_alto > 0:
+                hint_y = fin_lista_y + 4
+                hint = self.fuente_pequeña.render("Rueda/Arrastra para navegar", True, (150, 150, 150))
                 self.pantalla.blit(hint, (x_pad, hint_y))
-
-            # Ajustar y_pos para controles finales
-            y_pos = self.alto - 60
-
-            # Controles al final del panel (gris claro)
-            y_pos = self.alto - 60
-            controles = [
-                "ESC: Volver a ingresar"
+            
+            # ═══════════════════════════════════════════════════════
+            # SECCIÓN 2: AGREGAR/ELIMINAR AVIONES (CON SCROLL)
+            # ═══════════════════════════════════════════════════════
+            
+            # Línea separadora superior
+            y_control_inicio = self.alto - 240
+            pygame.draw.line(self.pantalla, (80, 80, 80), 
+                           (x_pad, y_control_inicio - 5), 
+                           (self.left_panel_width - x_pad, y_control_inicio - 5), 1)
+            
+            # Área scrollable para controles
+            control_area_height = 180
+            control_rect = pygame.Rect(x_pad - 5, y_control_inicio, self.left_panel_width - 2 * x_pad + 10, control_area_height)
+            
+            # Crear surface temporal para renderizar con clip
+            control_surface = pygame.Surface((control_rect.width, control_rect.height))
+            control_surface.fill((30, 30, 35))
+            
+            # Título de control
+            titulo_control = self.fuente_normal.render("GESTIÓN DE AVIONES", True, (100, 200, 100))
+            control_surface.blit(titulo_control, (5, 5))
+            
+            y_pos = 35
+            
+            # Dibujar campos extras (agregar/eliminar aviones)
+            if extra_fields:
+                box_w = max(60, control_rect.width - 20)
+                box_h = 50
+                label_height = 18
+                spacing = 75
+                
+                # Calcular altura total necesaria
+                total_height_needed = len(extra_fields) * spacing + 35
+                max_scroll = max(0, total_height_needed - control_area_height + 40)
+                
+                # Limitar scroll
+                self.extra_fields_scroll = min(max(self.extra_fields_scroll, 0), max_scroll)
+                
+                # Dibujar con offset de scroll
+                y_content = y_pos - self.extra_fields_scroll
+                
+                for i, (clave, valor) in enumerate(extra_fields):
+                    y_field = y_content + i * spacing
+                    
+                    # Solo dibujar si está visible
+                    if y_field + spacing > 0 and y_field < control_area_height:
+                        # Etiqueta
+                        etiqueta = self.fuente_pequeña.render(f"{clave}", True, (100, 200, 100))
+                        control_surface.blit(etiqueta, (10, y_field))
+                        
+                        # Caja de entrada
+                        rect = pygame.Rect(10, y_field + label_height + 2, box_w - 20, box_h)
+                        pygame.draw.rect(control_surface, (50, 70, 50), rect)
+                        borde_color = (100, 255, 100) if i == extra_index else (80, 100, 80)
+                        pygame.draw.rect(control_surface, borde_color, rect, 2)
+                        
+                        # Valor dentro de la caja
+                        texto_val = valor if valor is not None else ''
+                        linea = self.fuente_normal.render(texto_val, True, (100, 200, 100))
+                        control_surface.blit(linea, (rect.x + 8, rect.y + 8))
+            
+            # Blit de surface al pantalla
+            self.pantalla.blit(control_surface, control_rect.topleft)
+            
+            # Borde del área de control
+            pygame.draw.rect(self.pantalla, (80, 80, 80), control_rect, 1)
+            
+            # Barra de scroll para control (si es necesario)
+            if extra_fields and total_height_needed > control_area_height:
+                scrollbar_x = self.left_panel_width - 12
+                scrollbar_y = y_control_inicio
+                scrollbar_h = control_area_height
+                
+                # Fondo de scrollbar
+                pygame.draw.rect(self.pantalla, (50, 50, 50), 
+                               pygame.Rect(scrollbar_x, scrollbar_y, 8, scrollbar_h))
+                
+                # Thumb de scrollbar
+                thumb_h = max(20, int((control_area_height / total_height_needed) * scrollbar_h))
+                thumb_y = scrollbar_y + int((self.extra_fields_scroll / max_scroll) * (scrollbar_h - thumb_h)) if max_scroll > 0 else scrollbar_y
+                pygame.draw.rect(self.pantalla, (100, 150, 100), 
+                               pygame.Rect(scrollbar_x, thumb_y, 8, thumb_h))
+            
+            # Controles al final del panel (siempre visible)
+            y_hints = self.alto - 80
+            
+            # Línea separadora
+            pygame.draw.line(self.pantalla, (80, 80, 80), 
+                           (x_pad, y_hints - 8), 
+                           (self.left_panel_width - x_pad, y_hints - 8), 1)
+            
+            # Fondo para hints (área destacada)
+            hints_bg_rect = pygame.Rect(0, y_hints - 10, self.left_panel_width, self.alto - (y_hints - 10))
+            pygame.draw.rect(self.pantalla, (40, 40, 45), hints_bg_rect)
+            pygame.draw.line(self.pantalla, (100, 150, 100), (0, y_hints - 10), (self.left_panel_width, y_hints - 10), 2)
+            
+            # Hints con múltiples líneas - TAMAÑO GRANDE
+            hints_lines = [
+                "ESC: Volver",
+                "ENTER: Aplicar",
+              
             ]
-            for control in controles:
-                linea = self.fuente_pequeña.render(control, True, (200, 200, 200))
-                self.pantalla.blit(linea, (x_pad, y_pos))
-                y_pos += 20
+            
+            y_hint_pos = y_hints + 5
+            for line_idx, hint_text in enumerate(hints_lines):
+                # Usar fuente normal para hints (más grande que mini)
+                if hint_text.startswith("━"):
+                    # Línea separadora visual
+                    hint_render = self.fuente_mini.render(hint_text, True, (80, 120, 80))
+                else:
+                    hint_render = self.fuente_pequeña.render(hint_text, True, (150, 200, 150))
+                
+                # Centrar hints
+                hint_width = hint_render.get_width()
+                x_hint = x_pad + (self.left_panel_width - 2 * x_pad - hint_width) // 2
+                self.pantalla.blit(hint_render, (x_hint, y_hint_pos + line_idx * 13))
     
-    def dibujar(self, aviones, estadisticas, pareja_cercana=None, stats_algoritmo=None, mostrar_historial=False, colision=False, input_mode=False, campos=None, input_index=0, umbral=15, parejas_riesgo=None):
+    def dibujar(self, aviones, estadisticas, pareja_cercana=None, stats_algoritmo=None, mostrar_historial=False, colision=False, input_mode=False, campos=None, input_index=0, umbral=15, parejas_riesgo=None, extra_fields=None, extra_index=-1):
         """Dibuja la escena completa."""
         # Fondo general (negro)
         self.pantalla.fill(self.NEGRO)
@@ -435,7 +559,7 @@ class VistaPlanoCartesiano:
         self.pantalla.set_clip(None)
 
         # Dibuja interfaz (panel izquierdo) -> pasar también parejas_riesgo y umbral
-        kwargs = dict(input_mode=input_mode, campos=campos, input_index=input_index, parejas_riesgo=parejas_riesgo)
+        kwargs = dict(input_mode=input_mode, campos=campos, input_index=input_index, parejas_riesgo=parejas_riesgo, extra_fields=extra_fields, extra_index=extra_index)
         self.dibujar_interfaz(estadisticas, pareja_cercana, stats_algoritmo, colision, **kwargs)
         
         # Ajustar el rect del plano si el panel de parejas está visible
@@ -565,114 +689,20 @@ class VistaPlanoCartesiano:
             total_scroll = max(1, total_parejas * alto_fila - area_scroll_alto)
             thumb_altura = max(15, area_scroll_alto * area_scroll_alto / (total_parejas * alto_fila))
             thumb_y = contenido_y + (self.panel_parejas_scroll / total_scroll) * (area_scroll_alto - thumb_altura)
-            pygame.draw.rect(self.pantalla, (100, 150, 255), 
-                           pygame.Rect(barra_x, thumb_y, 8, thumb_altura))
+            thumb_rect = pygame.Rect(barra_x, thumb_y, 8, thumb_altura)
+            
+            # Dibujar thumb con efecto hover
+            pygame.draw.rect(self.pantalla, (120, 180, 255), thumb_rect)
+            pygame.draw.rect(self.pantalla, (150, 200, 255), thumb_rect, 1)
         
         # Hint al pie
-        hint_text = "P: cerrar | ↑↓: navegar"
+        hint_text = "CLIC + ARRASTRA BARRA | P: cerrar"
         hint = self.fuente_mini.render(hint_text, True, (150, 150, 150))
         self.pantalla.blit(hint, (contenido_x, self.alto - 22))
 
-    def dibujar_formulario_entrada(self, campos, indice_activo, mensaje_error=None):
-        """
-        Dibuja un formulario con cajas de texto para que el usuario ingrese
-        los parámetros iniciales antes de comenzar la simulación.
-
-        campos: lista de tuples (clave, valor_str)
-        indice_activo: índice del campo activo (resaltado)
-        mensaje_error: texto de error a mostrar (opcional)
-        """
-        ancho_panel = 420
-        alto_panel = 220
-        x0 = 40
-        y0 = 60
-        s = pygame.Surface((ancho_panel, alto_panel))
-        s.set_alpha(230)
-        s.fill((245, 245, 245))
-        self.pantalla.blit(s, (x0, y0))
-
-        titulo = self.fuente_grande.render("Parámetros iniciales", True, self.NEGRO)
-        self.pantalla.blit(titulo, (x0 + 12, y0 + 8))
-
-        # Campos: dibujar etiqueta y caja
-        box_w = 320
-        box_h = 28
-        spacing = 44
-        y = y0 + 48
-        for i, (clave, valor) in enumerate(campos):
-            # Etiqueta
-            etiqueta = self.fuente_normal.render(f"{clave}", True, self.NEGRO)
-            self.pantalla.blit(etiqueta, (x0 + 10, y + 2))
-
-            # Caja
-            rect_x = x0 + 120
-            rect = pygame.Rect(rect_x, y, box_w, box_h)
-            color_fondo = (255, 255, 255)
-            pygame.draw.rect(self.pantalla, color_fondo, rect)
-
-            # Borde
-            borde_color = (0, 120, 215) if i == indice_activo else self.GRIS
-            pygame.draw.rect(self.pantalla, borde_color, rect, 2)
-
-            # Texto dentro de la caja
-            texto_val = valor if valor is not None else ''
-            linea = self.fuente_normal.render(texto_val, True, self.NEGRO)
-            self.pantalla.blit(linea, (rect_x + 6, y + 4))
-
-            y += spacing
-
-        # Indicaciones
-        hint = self.fuente_pequeña.render("Ingrese valores y presione ENTER para INICIAR", True, self.GRIS)
-        self.pantalla.blit(hint, (x0 + 12, y0 + alto_panel - 36))
-
-        if mensaje_error:
-            err = self.fuente_normal.render(mensaje_error, True, (200, 0, 0))
-            self.pantalla.blit(err, (x0 + 12, y0 + alto_panel - 64))
-
-    def _fit_text_to_width(self, text, font, max_width):
-        """Return a version of `text` that fits within `max_width` pixels.
-
-        Behavior:
-        - If the whole text fits, return it.
-        - If it contains spaces (multiple words), return the longest prefix
-          consisting of whole words that fits.
-        - If it's a single long token (no spaces) and doesn't fit, return the
-          rightmost characters that fit (so the end is visible).
-        """
-        if not text:
-            return ''
-        # Quick accept
-        try:
-            w = font.size(text)[0]
-        except Exception:
-            return text
-        if w <= max_width:
-            return text
-
-        # If text has spaces, try to fit whole words from the left
-        if ' ' in text:
-            words = text.split()
-            candidate = ''
-            for i, word in enumerate(words):
-                test = (candidate + ' ' + word).strip()
-                if font.size(test)[0] <= max_width:
-                    candidate = test
-                else:
-                    break
-            # If nothing fit (first word too long), fallback to single-token logic
-            if candidate:
-                return candidate
-
-        # Single long token or no whole word fits: show rightmost characters
-        # Build from the end
-        out = ''
-        for ch in reversed(text):
-            out = ch + out
-            if font.size(out)[0] > max_width:
-                # Remove the first char added (it made it overflow)
-                out = out[1:]
-                break
-        return out
+    def obtener_fps(self):
+        """Retorna los FPS actuales."""
+        return self.reloj.get_fps()
 
     def _split_text_for_box(self, text, font, max_width):
         """Split `text` so the first returned value fits within `max_width`.

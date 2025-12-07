@@ -41,6 +41,8 @@ class ControladorAviones:
         self.param_fields = [['NUMERO DE AVIONES', ''], ['UMBRAL DE NM', '']]
         self.input_index = 0
         self.input_buffer = ''
+        # Mensaje de error para mostrar en pantalla cuando la entrada es inválida
+        self.input_error_msg = None
     
     def manejar_eventos(self):
         """Maneja los eventos del usuario."""
@@ -49,16 +51,31 @@ class ControladorAviones:
                 return False
             
             elif evento.type == pygame.MOUSEBUTTONDOWN:
+                # Si panel de parejas está abierto, permitir cerrar con click fuera
+                if self.vista.mostrar_panel_parejas and evento.button == 1:
+                    mx, my = evento.pos
+                    # El panel está centrado, si hace click afuera lo cerramos
+                    # (simplemente toggle el estado)
+                    # Para click en el botón "Ver todo", ya lo manejamos abajo
+                    return True
+                
                 # Si está el formulario abierto, permitir hacer click en las cajas para enfocar
                 if self.input_mode and evento.button == 1:
                     mx, my = evento.pos
+                    # Click en botón "Ver todo parejas" si existe
+                    if hasattr(self.vista, 'boton_parejas_rect'):
+                        if self.vista.boton_parejas_rect.collidepoint(mx, my):
+                            self.vista.mostrar_panel_parejas = True
+                            return True
+                    
                     # Coordenadas de las cajas en el panel izquierdo (deben coincidir con dibujar_interfaz)
                     x_pad = 10
                     box_x = x_pad
-                    box_w = self.vista.left_panel_width - 2 * x_pad
-                    box_h = 30
+                    # Debe coincidir con la lógica de vista: resto 30px para margen
+                    box_w = max(60, self.vista.left_panel_width - 2 * x_pad - 30)
+                    box_h = 44
                     label_height = 22
-                    spacing = 60
+                    spacing = 80
                     y0 = 10 + 40  # y_pos inicial en dibujar_interfaz
                     
                     # Calcular rects para cada campo
@@ -69,6 +86,16 @@ class ControladorAviones:
                             self.input_index = i
                             return True
                     return True
+
+                # Manejo legacy de rueda usando botones 4/5 (scroll)
+                # Si el usuario hizo click con botón 4 (arriba) o 5 (abajo) dentro
+                # del área del panel izquierdo, desplazar la lista.
+                if evento.button in (4, 5):
+                    mx, my = evento.pos
+                    if mx <= self.vista.left_panel_width:
+                        delta = 20 if evento.button == 5 else -20
+                        self.vista.left_panel_scroll = max(0, self.vista.left_panel_scroll + delta)
+                        return True
 
             # Manejar redimensionamiento de ventana (maximizar / cambiar tamaño)
             elif evento.type == pygame.VIDEORESIZE:
@@ -82,6 +109,29 @@ class ControladorAviones:
                 return True
 
             elif evento.type == pygame.KEYDOWN:
+                # Si panel de parejas está abierto, manejar navegación
+                if self.vista.mostrar_panel_parejas:
+                    if evento.key == pygame.K_ESCAPE or evento.key == pygame.K_p:
+                        self.vista.mostrar_panel_parejas = False
+                        self.vista.panel_parejas_scroll = 0
+                        return True
+                    if evento.key == pygame.K_UP:
+                        self.vista.panel_parejas_scroll = max(0, self.vista.panel_parejas_scroll - 20)
+                        return True
+                    if evento.key == pygame.K_DOWN:
+                        self.vista.panel_parejas_scroll += 20
+                        return True
+
+                # Si el panel lateral NO está abierto y no estamos en input_mode,
+                # permitir usar ↑/↓ para desplazar el panel izquierdo (lista)
+                if not self.vista.mostrar_panel_parejas and not self.input_mode:
+                    if evento.key == pygame.K_UP:
+                        self.vista.left_panel_scroll = max(0, self.vista.left_panel_scroll - 20)
+                        return True
+                    if evento.key == pygame.K_DOWN:
+                        self.vista.left_panel_scroll += 20
+                        return True
+
                 # Si estamos en modo de entrada de parámetros, procesar texto
                 if self.input_mode:
                     # ESC cierra la aplicación
@@ -95,11 +145,17 @@ class ControladorAviones:
                             umbral = float(self.param_fields[1][1])
 
                             # Validaciones básicas
+                            # Validaciones básicas
                             if n <= 0:
                                 raise ValueError("n debe ser mayor que 0")
+                            if n > 500:
+                                # No permitir más de 500 aviones
+                                self.input_error_msg = "Máximo permitido: 500 aviones"
+                                return True
                             if umbral <= 0:
                                 raise ValueError("Umbral de NM debe ser mayor que 0")
 
+                            self.input_error_msg = None
                             self.umbral = umbral  # Guardar umbral
 
                             # Ignorar los rangos ingresados; siempre usar 120x120 para evitar distorsión
@@ -148,6 +204,9 @@ class ControladorAviones:
                     self.param_fields = [['NUMERO DE AVIONES', ''], ['UMBRAL DE NM', '']]
                     self.input_index = 0
                     self.modelo.limpiar_aviones()
+                    # Resetear estado del panel de parejas
+                    self.vista.mostrar_panel_parejas = False
+                    self.vista.panel_parejas_scroll = 0
                     print("Regresando a entrada de parámetros...")
                     return True
                 # Controles de zoom: '+' (o '=') para acercar, '-' para alejar
@@ -164,6 +223,24 @@ class ControladorAviones:
                         except Exception:
                             pass
                         return True
+                    # Tecla P para mostrar/ocultar panel de parejas
+                    if evento.key == pygame.K_p:
+                        self.vista.mostrar_panel_parejas = not self.vista.mostrar_panel_parejas
+                        self.vista.panel_parejas_scroll = 0
+                        return True
+
+            # Manejar eventos de rueda modernos (pygame.MOUSEWHEEL)
+            elif evento.type == pygame.MOUSEWHEEL:
+                # Obtener posición actual del mouse y desplazar si está sobre el panel izquierdo
+                try:
+                    mx, my = pygame.mouse.get_pos()
+                    if mx <= self.vista.left_panel_width:
+                        # evento.y: positivo hacia arriba; invertimos para que rueda hacia arriba reduzca scroll
+                        self.vista.left_panel_scroll = max(0, self.vista.left_panel_scroll - int(evento.y * 24))
+                        return True
+                except Exception:
+                    pass
+                # (Input-mode handling is done on KEYDOWN; nothing more here.)
         
         return True
     
@@ -222,6 +299,12 @@ class ControladorAviones:
             # Dibujar (vista ahora incluye panel izquierdo donde mostramos entradas)
             campos = [(f[0], f[1]) for f in self.param_fields]
             # Pasamos el estado de input_mode e índices para que la vista pinte los valores en el panel
+            # Pasar mensaje de error (si existe) dentro de 'estadisticas' para que la vista lo pinte
+            estadisticas = self.obtener_estadisticas()
+            if self.input_error_msg:
+                # Insertar clave especial para mensaje de input
+                estadisticas['__input_error__'] = self.input_error_msg
+
             kwargs = dict(input_mode=self.input_mode, campos=campos,
                           input_index=self.input_index, umbral=self.umbral,
                           parejas_riesgo=parejas_riesgo)

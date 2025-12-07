@@ -44,7 +44,7 @@ except Exception:
         (255, 0, 255),
     ]
     FPS = 60
-    LEFT_PANEL_WIDTH = 320
+    LEFT_PANEL_WIDTH = 400
     FONT_SIZE_GRANDE = 28
     FONT_SIZE_NORMAL = 20
     FONT_SIZE_PEQUENA = 16
@@ -75,6 +75,15 @@ class VistaPlanoCartesiano:
         self.left_panel_width = left_panel_width
         # Área del plano a la derecha
         self.plano_rect = pygame.Rect(self.left_panel_width, 0, self.ancho - self.left_panel_width, self.alto)
+        
+        # Control de panel expandido para parejas en riesgo
+        self.mostrar_panel_parejas = False
+        self.scroll_parejas = 0
+        # Scroll interno para el panel izquierdo (lista de parejas)
+        self.left_panel_scroll = 0
+        # Panel lateral derecho para parejas
+        self.panel_parejas_ancho = 280
+        self.panel_parejas_scroll = 0
 
         # Escala basada en el rango configurado
         self.rango = min(self.rango_x, self.rango_y)
@@ -225,12 +234,19 @@ class VistaPlanoCartesiano:
         y_pos += 40
 
         if input_mode and campos is not None:
+            # Asegurar que todo lo que dibujemos para el panel izquierdo quede
+            # dentro del área del mismo (evitar superposición con el plano derecho)
+            left_clip = pygame.Rect(0, 0, self.left_panel_width, self.alto)
+            self.pantalla.set_clip(left_clip)
             # Dibujar SOLO campos de entrada (sin duplicar información)
             box_x = x_pad
-            box_w = self.left_panel_width - 2 * x_pad
-            box_h = 30
+            # Hacer las cajas ligeramente más angostas para dar más margen
+            box_w = max(60, self.left_panel_width - 2 * x_pad - 30)
+            # Aumentar la altura de la caja para permitir una segunda línea
+            box_h = 44
             label_height = 22  # Altura para la etiqueta
-            spacing = 60  # Espacio total entre campos
+            # Incrementar spacing para evitar colisión con la siguiente etiqueta
+            spacing = 80  # Espacio total entre campos
 
             for i, (clave, valor) in enumerate(campos):
                 # Etiqueta (blanca)
@@ -245,8 +261,17 @@ class VistaPlanoCartesiano:
 
                 # Valor dentro de la caja (blanco)
                 texto_val = valor if valor is not None else ''
-                linea = self.fuente_normal.render(texto_val, True, self.BLANCO)
+                # Ajustar el texto para mostrar la mayor cantidad de palabras
+                # completas en la línea principal y, si hay resto (palabra cortada
+                # o texto sobrante), mostrarlo en una segunda línea justo debajo
+                display_text, overflow = self._split_text_for_box(texto_val, self.fuente_normal, box_w - 12)
+                linea = self.fuente_normal.render(display_text, True, self.BLANCO)
                 self.pantalla.blit(linea, (rect.x + 8, rect.y + 6))
+                if overflow:
+                    # Dibujar overflow dentro de la zona gris (segunda línea)
+                    y_over = rect.y + 6 + self.fuente_normal.get_height()
+                    overflow_line = self.fuente_pequeña.render(overflow, True, (200, 200, 200))
+                    self.pantalla.blit(overflow_line, (rect.x + 8, y_over))
 
                 y_pos += spacing
 
@@ -254,10 +279,22 @@ class VistaPlanoCartesiano:
             hint = self.fuente_pequeña.render("INGRESE LOS VALORES Y PRESIONE ENTER PARA INICIAR", True, (200, 200, 200))
             self.pantalla.blit(hint, (x_pad, y_pos + 8))
 
+            # Si el controlador pasó un mensaje de error, dibujarlo debajo
+            try:
+                error_msg = estadisticas.get('__input_error__')
+            except Exception:
+                error_msg = None
+            if error_msg:
+                err = self.fuente_normal.render(error_msg, True, (220, 100, 100))
+                self.pantalla.blit(err, (x_pad, y_pos + 36))
+
+            # Restaurar clip para que la vista del plano pueda dibujarse encima
+            self.pantalla.set_clip(None)
+
         else:
             # Información general (SOLO lo esencial, sin duplicación) - blanco
             info = [
-                f"Aviones: {estadisticas.get('CANTIDAD_AVIONES', 0)}",
+                f"Aviones: {estadisticas.get('cantidad_aviones', estadisticas.get('CANTIDAD_AVIONES', 0))}",
             ]
 
             # Lista de parejas en riesgo (mostrar pares formateados)
@@ -268,36 +305,10 @@ class VistaPlanoCartesiano:
             except Exception:
                 lista_pares = []
 
-            # Construir líneas envueltas para que no se salgan del panel izquierdo
-            pair_lines = []
-            if lista_pares:
-                x_pad_inner = 10
-                max_w = self.left_panel_width - 2 * x_pad_inner
-                # Primer prefijo
-                prefix = "PAREJAS: ["
-                current = prefix
-                for i, token in enumerate(lista_pares):
-                    token_text = (", " if current != prefix else " ") + token
-                    # Probar si cabe
-                    if self.fuente_normal.size(current + token_text + ("]" if i == len(lista_pares) - 1 else ""))[0] <= max_w:
-                        current += token_text
-                        # Si es el último, cerrar corchete
-                        if i == len(lista_pares) - 1:
-                            current += "]"
-                            pair_lines.append(current)
-                    else:
-                        # Añadir la línea actual y comenzar nueva línea con token (sin prefijo)
-                        pair_lines.append(current)
-                        current = "  " + token
-                        if i == len(lista_pares) - 1:
-                            current += "]"
-                            pair_lines.append(current)
-                # Si quedó texto sin añadir
-                if current and (not pair_lines or pair_lines[-1] != current):
-                    pair_lines.append(current)
-            else:
-                pair_lines = ["PAREJAS: []"]
-
+            # Mostrar un número limitado de parejas en el panel izquierdo
+            # Para evitar que la lista desborde el panel, mostramos cada pareja
+            # en su propia línea y limitamos la cantidad. Si hay más, mostramos
+            # un botón "VER TODO" que abre el panel lateral (scrolleable).
             info.append(f"PAREJAS EN RIESGO: {len(pr)}")
 
             # Dibujar la primera línea de info (Aviones)
@@ -306,17 +317,48 @@ class VistaPlanoCartesiano:
                 self.pantalla.blit(linea, (x_pad, y_pos))
                 y_pos += 26
 
-            # Dibujar las líneas de parejas (envueltas) si existen
-            for pl in pair_lines:
-                linea = self.fuente_normal.render(pl, True, self.BLANCO)
-                self.pantalla.blit(linea, (x_pad, y_pos))
-                y_pos += 20
+            # Área visible para la lista de parejas en el panel izquierdo
+            controls_zone_height = 80
+            inicio_lista_y = y_pos
+            fin_lista_y = self.alto - controls_zone_height
+            alto_linea = 20
 
-            # Dibujar el resto de las líneas de info (ej. Parejas en riesgo)
-            for texto_info in info[1:]:
-                linea = self.fuente_normal.render(texto_info, True, self.BLANCO)
-                self.pantalla.blit(linea, (x_pad, y_pos))
-                y_pos += 26
+            # Contenido total y ajuste del scroll
+            total_parejas = len(lista_pares)
+            contenido_alto = total_parejas * alto_linea
+            vista_alto = max(0, fin_lista_y - inicio_lista_y)
+            # Limitar el scroll dentro de los rangos válidos
+            max_scroll = max(0, contenido_alto - vista_alto)
+            self.left_panel_scroll = min(max(self.left_panel_scroll, 0), max_scroll)
+
+            # Activar clip para el área de la lista y dibujar cada pareja con offset de scroll
+            lista_rect = pygame.Rect(0, inicio_lista_y, self.left_panel_width, vista_alto)
+            self.pantalla.set_clip(lista_rect)
+            for i, texto_par in enumerate(lista_pares):
+                y_line = inicio_lista_y + i * alto_linea - self.left_panel_scroll
+                linea = self.fuente_normal.render(texto_par, True, self.BLANCO)
+                self.pantalla.blit(linea, (x_pad + 6, y_line))
+            # Restaurar clip
+            self.pantalla.set_clip(None)
+
+            # Dibujar barra de scroll si es necesario
+            if max_scroll > 0 and vista_alto > 0:
+                barra_x = self.left_panel_width - 10
+                barra_rect = pygame.Rect(barra_x, inicio_lista_y, 8, vista_alto)
+                pygame.draw.rect(self.pantalla, (50, 50, 50), barra_rect)
+                thumb_h = max(15, int(vista_alto * (vista_alto / max(contenido_alto, 1))))
+                thumb_y = inicio_lista_y + int((self.left_panel_scroll / max_scroll) * (vista_alto - thumb_h)) if max_scroll > 0 else inicio_lista_y
+                thumb_rect = pygame.Rect(barra_x, thumb_y, 8, thumb_h)
+                pygame.draw.rect(self.pantalla, (100, 150, 255), thumb_rect)
+
+            # Muestra un pequeño hint si hay parejas y el contenido quedó scrolleable
+            if total_parejas > 0:
+                hint_y = fin_lista_y + 6
+                hint = self.fuente_pequeña.render("Rueda del mouse o ↑↓ para desplazarse", True, (180, 180, 180))
+                self.pantalla.blit(hint, (x_pad, hint_y))
+
+            # Ajustar y_pos para controles finales
+            y_pos = self.alto - 60
 
             # Controles al final del panel (gris claro)
             y_pos = self.alto - 60
@@ -395,6 +437,25 @@ class VistaPlanoCartesiano:
         # Dibuja interfaz (panel izquierdo) -> pasar también parejas_riesgo y umbral
         kwargs = dict(input_mode=input_mode, campos=campos, input_index=input_index, parejas_riesgo=parejas_riesgo)
         self.dibujar_interfaz(estadisticas, pareja_cercana, stats_algoritmo, colision, **kwargs)
+        
+        # Ajustar el rect del plano si el panel de parejas está visible
+        if self.mostrar_panel_parejas and parejas_riesgo:
+            # Acotar el plano para que no se sobreponga con el panel lateral
+            self.plano_rect = pygame.Rect(self.left_panel_width, 0, 
+                                         self.ancho - self.left_panel_width - self.panel_parejas_ancho, 
+                                         self.alto)
+            self.centro_x = self.plano_rect.x + self.plano_rect.width // 2
+            self._calcular_escala()
+            
+            # Dibuja panel lateral de parejas
+            self.dibujar_panel_parejas_lateral(parejas_riesgo)
+        else:
+            # Restaurar rect del plano a su tamaño completo
+            self.plano_rect = pygame.Rect(self.left_panel_width, 0, 
+                                         self.ancho - self.left_panel_width, 
+                                         self.alto)
+            self.centro_x = self.plano_rect.x + self.plano_rect.width // 2
+            self._calcular_escala()
 
         pygame.display.flip()
 
@@ -427,6 +488,90 @@ class VistaPlanoCartesiano:
             linea = self.fuente_normal.render(texto, True, self.NEGRO)
             self.pantalla.blit(linea, (x0 + 12, y))
             y += 28
+
+    def dibujar_panel_parejas_lateral(self, parejas_riesgo):
+        """
+        Dibuja un panel lateral derecho mostrando todas las parejas en riesgo
+        en una lista scrolleable con distancias.
+        
+        Args:
+            parejas_riesgo: Lista de objetos Pareja
+        """
+        # Panel lateral en el lado derecho
+        panel_x = self.ancho - self.panel_parejas_ancho
+        panel_y = 0
+        
+        # Fondo del panel (gris oscuro)
+        panel_rect = pygame.Rect(panel_x, panel_y, self.panel_parejas_ancho, self.alto)
+        pygame.draw.rect(self.pantalla, (35, 35, 35), panel_rect)
+        pygame.draw.rect(self.pantalla, (100, 150, 255), panel_rect, 2)
+        
+        # Título
+        titulo_text = f"PAREJAS EN RIESGO ({len(parejas_riesgo)})"
+        titulo = self.fuente_pequeña.render(titulo_text, True, (100, 150, 255))
+        self.pantalla.blit(titulo, (panel_x + 10, panel_y + 8))
+        
+        # Línea separadora
+        sep_y = panel_y + 28
+        pygame.draw.line(self.pantalla, (80, 80, 80), 
+                        (panel_x + 5, sep_y), 
+                        (self.ancho - 5, sep_y), 1)
+        
+        # Área de contenido
+        contenido_x = panel_x + 8
+        contenido_y = sep_y + 8
+        contenido_max_y = self.alto - 5
+        alto_fila = 18
+        
+        # Dibujar cada pareja
+        fila_index = 0
+        for pareja in parejas_riesgo:
+            if pareja and pareja.punto1 and pareja.punto2:
+                # Calcular posición con scroll
+                fila_y = contenido_y + fila_index * alto_fila - self.panel_parejas_scroll
+                
+                # Si está fuera del área visible, saltar
+                if fila_y > contenido_max_y or fila_y + alto_fila < contenido_y:
+                    fila_index += 1
+                    continue
+                
+                # Formatear la información: "A0-A5 (12.34)"
+                pareja_str = f"A{pareja.punto1.id}-A{pareja.punto2.id}"
+                dist_str = f"({pareja.distancia:.1f})"
+                
+                # Color según distancia
+                if pareja.distancia <= 15:
+                    color = (255, 80, 80)  # Rojo más brillante
+                else:
+                    color = (100, 200, 100)  # Verde
+                
+                # Renderizar en línea
+                linea = self.fuente_mini.render(f"{pareja_str} {dist_str}", True, color)
+                self.pantalla.blit(linea, (contenido_x, fila_y))
+                
+                fila_index += 1
+        
+        # Barra de scroll (si hay muchas parejas)
+        total_parejas = len([p for p in parejas_riesgo if p and p.punto1 and p.punto2])
+        area_scroll_alto = contenido_max_y - contenido_y
+        
+        if total_parejas * alto_fila > area_scroll_alto:
+            # Barra de fondo
+            barra_x = self.ancho - 12
+            barra_rect = pygame.Rect(barra_x, contenido_y, 8, area_scroll_alto)
+            pygame.draw.rect(self.pantalla, (50, 50, 50), barra_rect)
+            
+            # Posición del thumb
+            total_scroll = max(1, total_parejas * alto_fila - area_scroll_alto)
+            thumb_altura = max(15, area_scroll_alto * area_scroll_alto / (total_parejas * alto_fila))
+            thumb_y = contenido_y + (self.panel_parejas_scroll / total_scroll) * (area_scroll_alto - thumb_altura)
+            pygame.draw.rect(self.pantalla, (100, 150, 255), 
+                           pygame.Rect(barra_x, thumb_y, 8, thumb_altura))
+        
+        # Hint al pie
+        hint_text = "P: cerrar | ↑↓: navegar"
+        hint = self.fuente_mini.render(hint_text, True, (150, 150, 150))
+        self.pantalla.blit(hint, (contenido_x, self.alto - 22))
 
     def dibujar_formulario_entrada(self, campos, indice_activo, mensaje_error=None):
         """
@@ -483,6 +628,93 @@ class VistaPlanoCartesiano:
         if mensaje_error:
             err = self.fuente_normal.render(mensaje_error, True, (200, 0, 0))
             self.pantalla.blit(err, (x0 + 12, y0 + alto_panel - 64))
+
+    def _fit_text_to_width(self, text, font, max_width):
+        """Return a version of `text` that fits within `max_width` pixels.
+
+        Behavior:
+        - If the whole text fits, return it.
+        - If it contains spaces (multiple words), return the longest prefix
+          consisting of whole words that fits.
+        - If it's a single long token (no spaces) and doesn't fit, return the
+          rightmost characters that fit (so the end is visible).
+        """
+        if not text:
+            return ''
+        # Quick accept
+        try:
+            w = font.size(text)[0]
+        except Exception:
+            return text
+        if w <= max_width:
+            return text
+
+        # If text has spaces, try to fit whole words from the left
+        if ' ' in text:
+            words = text.split()
+            candidate = ''
+            for i, word in enumerate(words):
+                test = (candidate + ' ' + word).strip()
+                if font.size(test)[0] <= max_width:
+                    candidate = test
+                else:
+                    break
+            # If nothing fit (first word too long), fallback to single-token logic
+            if candidate:
+                return candidate
+
+        # Single long token or no whole word fits: show rightmost characters
+        # Build from the end
+        out = ''
+        for ch in reversed(text):
+            out = ch + out
+            if font.size(out)[0] > max_width:
+                # Remove the first char added (it made it overflow)
+                out = out[1:]
+                break
+        return out
+
+    def _split_text_for_box(self, text, font, max_width):
+        """Split `text` so the first returned value fits within `max_width`.
+
+        Returns a tuple (line, overflow). `line` is the text that fits (prefer
+        whole words). `overflow` is the remaining text (may start with the
+        part of a word that didn't fit) that should be drawn below the box.
+        """
+        if not text:
+            return '', ''
+        try:
+            full_w = font.size(text)[0]
+        except Exception:
+            return text, ''
+        if full_w <= max_width:
+            return text, ''
+
+        # Prefer whole words on the first line
+        if ' ' in text:
+            words = text.split(' ')
+            line = ''
+            for i, word in enumerate(words):
+                cand = (line + (' ' if line else '') + word).strip()
+                if font.size(cand)[0] <= max_width:
+                    line = cand
+                else:
+                    # The current word doesn't fit on the first line.
+                    # The overflow should include this word and the rest.
+                    rest = ' '.join(words[i:])
+                    return line, rest
+            # If loop finishes, the entire text fit (shouldn't happen due to earlier check)
+            return line, ''
+
+        # No spaces (single long token), split at char boundary: show leftmost chunk that fits
+        chunk = ''
+        for ch in text:
+            if font.size(chunk + ch)[0] <= max_width:
+                chunk += ch
+            else:
+                break
+        overflow = text[len(chunk):]
+        return chunk, overflow
     
     def obtener_fps(self):
         """Retorna los FPS actuales."""

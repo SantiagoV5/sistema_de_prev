@@ -1,28 +1,24 @@
+﻿# Ignore virtual environments and build artifacts
 .venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
 venv/
 ENV/
-build/
-dist/
-.eggs/
-*.egg-info/
-.eggs/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Editor files
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
 .DS_Store
 Thumbs.db
-desktop.ini
-.env
-*.log
-.python-version
-.pytest_cache/
-# OS generated files
-Icon
 
-# OneDrive temp
-~$*
+# Distribution / packaging
+build/
+dist/
+*.egg-info/

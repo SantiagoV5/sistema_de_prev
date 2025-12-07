@@ -1,35 +1,153 @@
-# Sistema de Aviones - Plano Cartesiano (Arquitectura MVC)
+# 🛩️ Sistema de Prevención de Colisiones Aéreas
 
-## Descripción
+---
 
-Aplicación basada en la arquitectura **Modelo-Vista-Controlador (MVC)** que simula aviones moviéndose en un plano cartesiano. El proyecto es una extensión mejorada del programa inicial, con una estructura más robusta y escalable.
+## 📦 Requisitos Previos
 
-## Estructura del Proyecto
+- **Python**: 3.8 o superior
+- **Pygame**: 2.6.1 o superior
+
+---
+
+## ⚙️ Instalación
+
+### Paso 1: Instalar dependencias
+
+```bash
+pip install -r requirements.txt
+```
+
+O manualmente:
+
+```bash
+pip install pygame
+```
+
+---
+
+## 🚀 Inicializar la Aplicación
+
+### Opción 1 : Desde VS Code
+
+1. Abre el proyecto en VS Code
+2. Haz clic derecho en `main.py`
+3. Selecciona "Run Python File"
+
+---
+
+## 📋 Configuración Inicial (Al Ejecutar)
+
+Cuando inicies la aplicación, se te pedirá:
+
+### 1️⃣ Número de Aviones
+```
+NUMERO DE AVIONES: [____]
+```
+- **Rango**: 1 a 500
+- **Recomendado**: 10-50
+- **Ejemplo**: `20`
+
+### 2️⃣ Umbral de Colisión (NM)
+```
+UMBRAL DE NM: [____]
+```
+- **Rango**: Cualquier valor positivo
+- **Recomendado**: 15
+- **Ejemplo**: `15`
+
+Presiona **ENTER** después de cada valor para continuar.
+
+---
+
+## 🎮 Controles Principales
+
+| Acción | Efecto |
+|--------|--------|
+| **ESC** | Volver al formulario inicial |
+| **ENTER** | Aplicar comando (agregar/eliminar) |
+| **Rueda del Ratón** | Desplazar listas automáticamente |
+| **Click + Arrastra** | Mover barras de scroll |
+| **Números** | Escribir cantidad de aviones |
+| **BACKSPACE** | Borrar último carácter |
+
+---
+
+## 📊 Interfaz
+
+### Panel Izquierdo (Información y Control)
 
 ```
-mvc_aviones/
-├── main.py              # Punto de entrada de la aplicación
-├── modelo.py            # Capa de modelo (lógica de negocio)
-├── vista.py             # Capa de vista (visualización)
-├── controlador.py       # Capa de controlador (interacción)
-└── README.md            # Este archivo
+┌─────────────────────────────┐
+│ Aviones: 20                 │  ← Contador
+│ PAREJAS EN RIESGO: 3        │  ← Alerta
+├─────────────────────────────┤
+│ Lista de parejas (scrollable)│  ← Sección 1
+├─────────────────────────────┤
+│ AGREGAR AVIONES             │  ← Sección 2
+│ [_______________]           │
+│                             │
+│ ELIMINAR AVIONES            │
+│ [_______________]           │
+├─────────────────────────────┤
+│ ESC | TAB | ENTER           │  ← Sección 3
+│ Rueda: Scroll               │     (Hints)
+└─────────────────────────────┘
 ```
 
-## Componentes
+### Panel Derecho
 
-### 1. **Modelo** (`modelo.py`)
+- **Plano Cartesiano 2D**: Visualiza los aviones en movimiento
+- **Ejes**: Coordenadas de referencia (X, Y)
+- **Aviones**: Círculos de colores con etiquetas (A1, A2, etc.)
 
-Contiene la lógica de negocio sin conocimiento de la interfaz gráfica.
+---
 
-**Clases principales:**
-- `Avion`: Representa un avión con posición, velocidad y dirección.
-  - `mover()`: Mueve el avión según su velocidad y ángulo
-  - `cambiar_direccion()`: Cambia la dirección del avión
-  - `cambiar_velocidad()`: Ajusta la velocidad
-  - `obtener_posicion()`: Retorna coordenadas actuales
-  - `obtener_historial()`: Retorna historial de posiciones
+## ✨ Características
 
-- `GestorAviones`: Administra todos los aviones y la lógica general.
+- ✅ Detección de colisiones con algoritmo **O(n log n)**
+- ✅ **Gestión dinámica**: Agregar/eliminar aviones en tiempo real
+- ✅ **Panel scrollable**: Navega listas largas fácilmente
+- ✅ **Interfaz intuitiva**: Hints grandes y visibles
+- ✅ **Arquitectura MVC**: Código limpio y mantenible
+- ✅ **Rendimiento optimizado**: 28x más rápido que fuerza bruta
+
+---
+
+## 📂 Estructura del Proyecto
+
+```
+sistema_de_prev/
+├── main.py                # Punto de entrada
+├── modelo.py              # Lógica de aviones y algoritmo
+├── vista.py               # Visualización Pygame
+├── controlador.py         # Manejo de eventos
+├── utilidades.py          # Funciones auxiliares
+├── config.py              # Configuración centralizada
+├── requirements.txt       # Dependencias
+├── DOCUMENTACION.md       # Documentación completa
+└── README.md              # Este archivo
+```
+
+---
+
+## 🐛 Solución de Problemas
+
+### "ModuleNotFoundError: No module named 'pygame'"
+```bash
+pip install pygame
+```
+
+### Aplicación muy lenta
+- Reduce el número de aviones a menos de 100
+- Cierra otras aplicaciones
+
+### Campos no responden a clicks
+- Asegúrate de estar en modo simulación (después del formulario)
+- Haz clic dentro del área verde del campo
+
+---
+
+**¡Listo para usar! 🚀**
   - `generar_aviones_aleatorios()`: Crea aviones con posiciones garantizadas
   - `actualizar_aviones()`: Actualiza posiciones de todos los aviones
   - `detectar_colision()`: Detecta colisiones entre aviones
@@ -59,28 +177,6 @@ Coordina la interacción entre el modelo y la vista.
   - `detectar_colisiones()`: Verifica colisiones
   - `ejecutar()`: Bucle principal
 
-## Características
-
-✨ **Características Implementadas:**
-
-- ✅ **Generación aleatoria de aviones** con separación garantizada
-- ✅ **Movimiento dinámico** con velocidad y ángulo personalizables
-- ✅ **Detección de colisiones** entre aviones
-- ✅ **Historial de posiciones** (rastro) visualizable
-- ✅ **Interfaz interactiva** con información en tiempo real
-- ✅ **Cuadrícula de fondo** para mejor orientación
-- ✅ **Múltiples colores** para diferenciar aviones
-- ✅ **Aviones rotados** según su dirección
-
-## Controles
-
-| Tecla | Acción |
-|-------|--------|
-| **ESPACIO** | Generar nuevos aviones |
-| **M** | Activar/Desactivar movimiento |
-| **H** | Mostrar/Ocultar historial de posiciones |
-| **A** | Añadir un avión más |
-| **ESC** | Salir de la aplicación |
 
 ## Requisitos
 
@@ -108,19 +204,6 @@ controlador = ControladorAviones()
 # Ejecutar aplicación
 controlador.ejecutar()
 ```
-
-## Extensiones Posibles
-
-El proyecto puede extenderse con:
-
-- 🔹 **Sistemas de waypoints**: Los aviones siguen ruta predefinida
-- 🔹 **Radar visual**: Mostrar área de detección de colisiones
-- 🔹 **Persistencia**: Guardar/cargar estado en archivos
-- 🔹 **Controles avanzados**: Controlar aviones con mouse o teclado
-- 🔹 **Estadísticas detalladas**: Distancias, velocidades, ángulos
-- 🔹 **Física mejorada**: Aceleración, fricción, fuerzas
-- 🔹 **Modos de juego**: Competencia, cooperación, etc.
-
 ## Diagrama MVC
 
 ```
@@ -148,9 +231,6 @@ El proyecto puede extenderse con:
 - **Patrón de Diseño:** Separación de responsabilidades
 - **FPS:** 60 frames por segundo (configurable)
 
-## Autor
-
-Proyecto educativo para demostración de arquitectura MVC.
 
 ## Licencia
 

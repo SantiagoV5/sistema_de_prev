@@ -26,25 +26,13 @@ class Avion:
         self.angulo = angulo
         self.historial = [(x, y)]  # Guarda las posiciones anteriores
     
-    def mover(self):
-        """Mueve el avión en base a su velocidad y ángulo."""
-        pass
-    
-    def cambiar_direccion(self, nuevo_angulo):
-        """Cambia la dirección del avión."""
-        pass
-    
-    def cambiar_velocidad(self, nueva_velocidad):
-        """Cambia la velocidad del avión."""
-        pass
-    
     def obtener_posicion(self):
         """Retorna la posición actual del avión."""
         return (self.x, self.y)
     
     def obtener_historial(self):
         """Retorna el historial de posiciones."""
-        pass
+        return self.historial
     
     def __repr__(self):
         return f"Avión {self.id_avion}: ({self.x:.2f}, {self.y:.2f})"
@@ -129,10 +117,6 @@ class GestorAviones:
         """Retorna todos los aviones."""
         return list(self.aviones.values())
     
-    def actualizar_aviones(self):
-        """Actualiza la posición de todos los aviones."""
-        pass
-    
     def ejecutar_algoritmo_pareja_cercana(self):
         """Ejecuta el algoritmo Dividir y Vencer para encontrar pareja más cercana."""
         aviones_list = list(self.aviones.values())
@@ -171,14 +155,6 @@ class GestorAviones:
                 return False
         
         return True
-    
-    def incrementar_colisiones_evitadas(self):
-        """Incrementa el contador de colisiones evitadas."""
-        pass
-    
-    def detectar_colision(self, distancia_minima=10):
-        """Detecta si hay colisión entre aviones."""
-        pass
 
     def encontrar_parejas_en_riesgo(self, distancia_umbral):
         """Devuelve una lista de objetos Pareja con todas las parejas cuya

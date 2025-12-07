@@ -36,11 +36,11 @@ except Exception:
         'AMARILLO': (255, 255, 0),
     }
     COLORES_AVIONES = [
-        COLORES['ROJO'],
+        COLORES['VERDE'],
         COLORES['AZUL'],
         COLORES['VERDE'],
         COLORES['NARANJA'],
-        COLORES['AMARILLO'],
+        COLORES['VERDE'],
         (255, 0, 255),
     ]
     FPS = 60
@@ -547,7 +547,7 @@ class VistaPlanoCartesiano:
                 color = self.ROJO
                 resaltado = True
             else:
-                color = self.AMARILLO
+                color = self.VERDE
                 resaltado = False
 
             self.dibujar_avion(x, y, color, avion.id_avion, avion.angulo, resaltado)

@@ -28,18 +28,15 @@ class Avion:
     
     def mover(self):
         """Mueve el avión en base a su velocidad y ángulo."""
-        radianes = math.radians(self.angulo)
-        self.x += self.velocidad * math.cos(radianes)
-        self.y += self.velocidad * math.sin(radianes)
-        self.historial.append((self.x, self.y))
+        pass
     
     def cambiar_direccion(self, nuevo_angulo):
         """Cambia la dirección del avión."""
-        self.angulo = nuevo_angulo % 360
+        pass
     
     def cambiar_velocidad(self, nueva_velocidad):
         """Cambia la velocidad del avión."""
-        self.velocidad = max(0, nueva_velocidad)
+        pass
     
     def obtener_posicion(self):
         """Retorna la posición actual del avión."""
@@ -47,7 +44,7 @@ class Avion:
     
     def obtener_historial(self):
         """Retorna el historial de posiciones."""
-        return self.historial
+        pass
     
     def __repr__(self):
         return f"Avión {self.id_avion}: ({self.x:.2f}, {self.y:.2f})"
@@ -134,8 +131,7 @@ class GestorAviones:
     
     def actualizar_aviones(self):
         """Actualiza la posición de todos los aviones."""
-        for avion in self.aviones.values():
-            avion.mover()
+        pass
     
     def ejecutar_algoritmo_pareja_cercana(self):
         """Ejecuta el algoritmo Dividir y Vencer para encontrar pareja más cercana."""
@@ -178,17 +174,11 @@ class GestorAviones:
     
     def incrementar_colisiones_evitadas(self):
         """Incrementa el contador de colisiones evitadas."""
-        self.colisiones_evitadas += 1
+        pass
     
     def detectar_colision(self, distancia_minima=10):
         """Detecta si hay colisión entre aviones."""
-        ids_aviones = list(self.aviones.keys())
-        for i in range(len(ids_aviones)):
-            for j in range(i + 1, len(ids_aviones)):
-                distancia = self.calcular_distancia_entre_aviones(ids_aviones[i], ids_aviones[j])
-                if distancia and distancia < distancia_minima:
-                    return True, ids_aviones[i], ids_aviones[j]
-        return False, None, None
+        pass
 
     def encontrar_parejas_en_riesgo(self, distancia_umbral):
         """Devuelve una lista de objetos Pareja con todas las parejas cuya

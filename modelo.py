@@ -199,6 +199,27 @@ class GestorAviones:
                 if distancia and distancia < distancia_minima:
                     return True, ids_aviones[i], ids_aviones[j]
         return False, None, None
+
+    def encontrar_parejas_en_riesgo(self, distancia_umbral):
+        """Devuelve una lista de objetos Pareja con todas las parejas cuya
+        distancia es menor o igual que `distancia_umbral`.
+
+        Args:
+            distancia_umbral: umbral en las mismas unidades del plano (float)
+
+        Returns:
+            Lista de `Pareja`.
+        """
+        parejas = []
+        ids_aviones = list(self.aviones.keys())
+        for i in range(len(ids_aviones)):
+            for j in range(i + 1, len(ids_aviones)):
+                dist = self.calcular_distancia_entre_aviones(ids_aviones[i], ids_aviones[j])
+                if dist is not None and dist <= distancia_umbral:
+                    p1 = Punto(self.aviones[ids_aviones[i]])
+                    p2 = Punto(self.aviones[ids_aviones[j]])
+                    parejas.append(Pareja(p1, p2, dist))
+        return parejas
     
     def limpiar_aviones(self):
         """Elimina todos los aviones."""

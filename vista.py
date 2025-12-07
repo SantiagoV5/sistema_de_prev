@@ -2,13 +2,60 @@
 Vista: Maneja toda la visualización usando pygame.
 """
 import pygame
-import math
+
+# Intentar cargar configuración centralizada; usar valores por defecto si falta
+try:
+    from config import (
+        ANCHO_VENTANA,
+        ALTO_VENTANA,
+        RANGO_PLANO,
+        COLORES,
+        COLORES_AVIONES,
+        FPS,
+        LEFT_PANEL_WIDTH,
+        FONT_SIZE_GRANDE,
+        FONT_SIZE_NORMAL,
+        FONT_SIZE_PEQUENA,
+        FONT_SIZE_MINI,
+        MOSTRAR_GRID,
+    )
+except Exception:
+    # Valores por defecto mínimos si no existe config.py
+    ANCHO_VENTANA = 900
+    ALTO_VENTANA = 700
+    RANGO_PLANO = 120
+    COLORES = {
+        'BLANCO': (255, 255, 255),
+        'NEGRO': (0, 0, 0),
+        'GRIS_CLARO': (50, 50, 50),
+        'GRIS': (150, 150, 150),
+        'ROJO': (255, 0, 0),
+        'AZUL': (0, 150, 255),
+        'VERDE': (0, 255, 100),
+        'NARANJA': (255, 165, 0),
+        'AMARILLO': (255, 255, 0),
+    }
+    COLORES_AVIONES = [
+        COLORES['ROJO'],
+        COLORES['AZUL'],
+        COLORES['VERDE'],
+        COLORES['NARANJA'],
+        COLORES['AMARILLO'],
+        (255, 0, 255),
+    ]
+    FPS = 60
+    LEFT_PANEL_WIDTH = 320
+    FONT_SIZE_GRANDE = 28
+    FONT_SIZE_NORMAL = 20
+    FONT_SIZE_PEQUENA = 16
+    FONT_SIZE_MINI = 10
+    MOSTRAR_GRID = False
 
 
 class VistaPlanoCartesiano:
     """Gestiona la visualización del plano cartesiano con pygame."""
     
-    def __init__(self, ancho=900, alto=700, rango_x=120, rango_y=120, left_panel_width=200):
+    def __init__(self, ancho=ANCHO_VENTANA, alto=ALTO_VENTANA, rango_x=RANGO_PLANO, rango_y=RANGO_PLANO, left_panel_width=LEFT_PANEL_WIDTH):
         """
         Inicializa la vista.
         
@@ -21,52 +68,49 @@ class VistaPlanoCartesiano:
         pygame.init()
         self.ancho = ancho
         self.alto = alto
-        # Siempre usar 120x120 para escala (ignorar rangos de entrada para evitar distorsión)
-        self.rango_x = 120
-        self.rango_y = 120
+        # Usar el rango establecido en la configuración central
+        self.rango_x = rango_x
+        self.rango_y = rango_y
         # Tamaño del panel izquierdo (entradas / información)
-        self.left_panel_width = left_panel_width = 320
+        self.left_panel_width = left_panel_width
         # Área del plano a la derecha
         self.plano_rect = pygame.Rect(self.left_panel_width, 0, self.ancho - self.left_panel_width, self.alto)
 
-        # Para escala usamos siempre 120 (rango fijo)
-        self.rango = 120
-        self.pantalla = pygame.display.set_mode((ancho, alto))
-        pygame.display.set_caption("SISTEMA DE PREVENCIÓN DE COLISIONES DE AVIONES")
+        # Escala basada en el rango configurado
+        self.rango = min(self.rango_x, self.rango_y)
+        # Hacer la ventana redimensionable para que el botón Maximizar funcione
+        self.pantalla = pygame.display.set_mode((ancho, alto), pygame.RESIZABLE)
+        pygame.display.set_caption("SISTEMA DE PREVENCION")
         self.reloj = pygame.time.Clock()
         
         # Centro del plano en pantalla (dentro del rectángulo derecho)
         self.centro_x = self.plano_rect.x + self.plano_rect.width // 2
         self.centro_y = self.plano_rect.y + self.plano_rect.height // 2
         # Escala basada en el tamaño del rectángulo del plano
-        self.escala = (min(self.plano_rect.width, self.plano_rect.height) // 2) / self.rango
+        # Zoom multiplicador (1.0 = 100%) para permitir aumentar/disminuir zoom
+        self.zoom = 1.0
+        self._calcular_escala()
         
-        # Colores (tema oscuro)
-        self.BLANCO = (255, 255, 255)
-        self.NEGRO = (0, 0, 0)
-        self.GRIS_CLARO = (50, 50, 50)      # Cuadrícula más oscura
-        self.GRIS = (150, 150, 150)         # Bordes más claros
-        self.ROJO = (255, 0, 0)
-        self.AZUL = (0, 150, 255)
-        self.VERDE = (0, 255, 100)
-        self.NARANJA = (255, 165, 0)
-        self.AMARILLO = (255, 255, 0)
-        
+        # Colores (tema oscuro) desde config
+        self.BLANCO = COLORES.get('BLANCO', (255, 255, 255))
+        self.NEGRO = COLORES.get('NEGRO', (0, 0, 0))
+        self.GRIS_CLARO = COLORES.get('GRIS_CLARO', (50, 50, 50))
+        self.GRIS = COLORES.get('GRIS', (150, 150, 150))
+        self.ROJO = COLORES.get('ROJO', (255, 0, 0))
+        self.AZUL = COLORES.get('AZUL', (0, 150, 255))
+        self.VERDE = COLORES.get('VERDE', (0, 255, 100))
+        self.NARANJA = COLORES.get('NARANJA', (255, 165, 0))
+        self.AMARILLO = COLORES.get('AMARILLO', (255, 255, 0))
+
         # Colores para aviones
-        self.colores_aviones = [
-            self.ROJO,
-            self.AZUL,
-            self.VERDE,
-            self.NARANJA,
-            self.AMARILLO,
-            (255, 0, 255),  # Magenta
-        ]
+        self.colores_aviones = COLORES_AVIONES
         
-        # Fuentes
-        self.fuente_grande = pygame.font.Font(None, 28)
-        self.fuente_normal = pygame.font.Font(None, 20)
-        self.fuente_pequeña = pygame.font.Font(None, 16)
-        self.fuente_mini = pygame.font.Font(None, 10)
+        # Fuentes (tamaños desde config)
+        self.fuente_grande = pygame.font.Font(None, FONT_SIZE_GRANDE)
+        self.fuente_normal = pygame.font.Font(None, FONT_SIZE_NORMAL)
+        self.fuente_pequeña = pygame.font.Font(None, FONT_SIZE_PEQUENA)
+        self.fuente_mini = pygame.font.Font(None, FONT_SIZE_MINI)
+        self.mostrar_grid = MOSTRAR_GRID
     
     def coordenada_pantalla(self, x_cart, y_cart):
         """Convierte coordenadas cartesianas a coordenadas de pantalla."""
@@ -77,14 +121,15 @@ class VistaPlanoCartesiano:
     def dibujar_ejes(self):
         """Dibuja los ejes cartesianos."""
         # Eje X dentro del rect del plano (blanco)
-        pygame.draw.line(self.pantalla, self.BLANCO,
-                 (self.plano_rect.x, self.centro_y),
-                 (self.plano_rect.x + self.plano_rect.width, self.centro_y), 2)
+        x1 = self.plano_rect.x
+        x2 = self.plano_rect.x + self.plano_rect.width
+        y_center = self.centro_y
+        pygame.draw.line(self.pantalla, self.BLANCO, (x1, y_center), (x2, y_center), 2)
 
         # Eje Y dentro del rect del plano (blanco)
-        pygame.draw.line(self.pantalla, self.BLANCO,
-                 (self.centro_x, self.plano_rect.y),
-                 (self.centro_x, self.plano_rect.y + self.plano_rect.height), 2)
+        y1 = self.plano_rect.y
+        y2 = self.plano_rect.y + self.plano_rect.height
+        pygame.draw.line(self.pantalla, self.BLANCO, (self.centro_x, y1), (self.centro_x, y2), 2)
         
         # Marcas cada 10 unidades hasta 100 (blanco)
         for i in range(-100, 101, 10):
@@ -126,13 +171,13 @@ class VistaPlanoCartesiano:
         """
         x_pantalla, y_pantalla = self.coordenada_pantalla(x, y)
         
-        # Dibuja punto (círculo pequeño) en lugar de triángulo
-        radio = 4 if resaltado else 3
+        # Dibuja punto (círculo) con tamaño ligeramente mayor para mayor visibilidad
+        radio = 6 if resaltado else 5
         pygame.draw.circle(self.pantalla, color, (x_pantalla, y_pantalla), radio)
         pygame.draw.circle(self.pantalla, self.NEGRO, (x_pantalla, y_pantalla), radio, 1)
         
-        # Etiqueta con ID y coordenadas
-        texto = self.fuente_pequeña.render(f"A{id_avion}: ({x:.1f}, {y:.1f})", True, color)
+        # Etiqueta con sólo ID del avión (sin coordenadas)
+        texto = self.fuente_pequeña.render(f"A{id_avion}", True, color)
         self.pantalla.blit(texto, (x_pantalla + 15, y_pantalla - 15))
     
     def dibujar_historial(self, historial, color):
@@ -142,8 +187,9 @@ class VistaPlanoCartesiano:
             # Dibuja líneas con opacidad decreciente
             for i in range(len(puntos_pantalla) - 1):
                 # Usa un color con menor brillo para el historial
-                pygame.draw.line(self.pantalla, color, 
-                               puntos_pantalla[i], puntos_pantalla[i + 1], 1)
+                p1 = puntos_pantalla[i]
+                p2 = puntos_pantalla[i + 1]
+                pygame.draw.line(self.pantalla, color, p1, p2, 1)
     
     def dibujar_pareja_mas_cercana(self, pareja):
         """
@@ -162,7 +208,7 @@ class VistaPlanoCartesiano:
         # No dibujamos la línea entre aviones para evitar distracciones;
         # los aviones ya se resaltan individualmente cuando forman la pareja.
     
-    def dibujar_interfaz(self, estadisticas, pareja_cercana=None, stats_algoritmo=None, colision=False, input_mode=False, campos=None, input_index=0):
+    def dibujar_interfaz(self, estadisticas, pareja_cercana=None, stats_algoritmo=None, colision=False, input_mode=False, campos=None, input_index=0, parejas_riesgo=None):
         """Dibuja la interfaz de usuario en el panel izquierdo.
 
         Si `input_mode` es True, muestra cajas de texto para los campos proporcionados
@@ -205,24 +251,69 @@ class VistaPlanoCartesiano:
                 y_pos += spacing
 
             # Hint (gris claro)
-            hint = self.fuente_pequeña.render("Ingresa los valores y presiona ENTER para INICIAR", True, (200, 200, 200))
+            hint = self.fuente_pequeña.render("INGRESE LOS VALORES Y PRESIONE ENTER PARA INICIAR", True, (200, 200, 200))
             self.pantalla.blit(hint, (x_pad, y_pos + 8))
 
         else:
             # Información general (SOLO lo esencial, sin duplicación) - blanco
             info = [
-                f"Aviones: {estadisticas.get('cantidad_aviones', 0)}",
+                f"Aviones: {estadisticas.get('CANTIDAD_AVIONES', 0)}",
             ]
 
-            if pareja_cercana and pareja_cercana.punto1:
-                info.append(f"Pareja: A{pareja_cercana.punto1.id} - A{pareja_cercana.punto2.id}")
-                info.append(f"Distancia: {pareja_cercana.distancia:.2f}")
-            
-            # Mostrar colisiones evitadas
-            colisiones_evitadas = estadisticas.get('colisiones_evitadas', 0)
-            info.append(f"Colisiones evitadas: {colisiones_evitadas}")
+            # Lista de parejas en riesgo (mostrar pares formateados)
+            pr = parejas_riesgo or []
+            # Preparar pares como lista de tokens "A# - A#"
+            try:
+                lista_pares = [f"A{p.punto1.id} - A{p.punto2.id}" for p in pr if p and p.punto1 and p.punto2]
+            except Exception:
+                lista_pares = []
 
-            for texto_info in info:
+            # Construir líneas envueltas para que no se salgan del panel izquierdo
+            pair_lines = []
+            if lista_pares:
+                x_pad_inner = 10
+                max_w = self.left_panel_width - 2 * x_pad_inner
+                # Primer prefijo
+                prefix = "PAREJAS: ["
+                current = prefix
+                for i, token in enumerate(lista_pares):
+                    token_text = (", " if current != prefix else " ") + token
+                    # Probar si cabe
+                    if self.fuente_normal.size(current + token_text + ("]" if i == len(lista_pares) - 1 else ""))[0] <= max_w:
+                        current += token_text
+                        # Si es el último, cerrar corchete
+                        if i == len(lista_pares) - 1:
+                            current += "]"
+                            pair_lines.append(current)
+                    else:
+                        # Añadir la línea actual y comenzar nueva línea con token (sin prefijo)
+                        pair_lines.append(current)
+                        current = "  " + token
+                        if i == len(lista_pares) - 1:
+                            current += "]"
+                            pair_lines.append(current)
+                # Si quedó texto sin añadir
+                if current and (not pair_lines or pair_lines[-1] != current):
+                    pair_lines.append(current)
+            else:
+                pair_lines = ["PAREJAS: []"]
+
+            info.append(f"PAREJAS EN RIESGO: {len(pr)}")
+
+            # Dibujar la primera línea de info (Aviones)
+            if info:
+                linea = self.fuente_normal.render(info[0], True, self.BLANCO)
+                self.pantalla.blit(linea, (x_pad, y_pos))
+                y_pos += 26
+
+            # Dibujar las líneas de parejas (envueltas) si existen
+            for pl in pair_lines:
+                linea = self.fuente_normal.render(pl, True, self.BLANCO)
+                self.pantalla.blit(linea, (x_pad, y_pos))
+                y_pos += 20
+
+            # Dibujar el resto de las líneas de info (ej. Parejas en riesgo)
+            for texto_info in info[1:]:
                 linea = self.fuente_normal.render(texto_info, True, self.BLANCO)
                 self.pantalla.blit(linea, (x_pad, y_pos))
                 y_pos += 26
@@ -237,7 +328,7 @@ class VistaPlanoCartesiano:
                 self.pantalla.blit(linea, (x_pad, y_pos))
                 y_pos += 20
     
-    def dibujar(self, aviones, estadisticas, pareja_cercana=None, stats_algoritmo=None, mostrar_historial=False, colision=False, input_mode=False, campos=None, input_index=0, umbral=15):
+    def dibujar(self, aviones, estadisticas, pareja_cercana=None, stats_algoritmo=None, mostrar_historial=False, colision=False, input_mode=False, campos=None, input_index=0, umbral=15, parejas_riesgo=None):
         """Dibuja la escena completa."""
         # Fondo general (negro)
         self.pantalla.fill(self.NEGRO)
@@ -250,15 +341,16 @@ class VistaPlanoCartesiano:
         # Activar clipping para que nada se dibuje fuera del recuadro del plano
         self.pantalla.set_clip(self.plano_rect)
         
-        # Dibuja fondo de cuadrícula dentro del rect del plano
-        for i in range(-int(self.rango), int(self.rango) + 1, 40):
-            x, y = self.coordenada_pantalla(i, -self.rango)
-            x2, y2 = self.coordenada_pantalla(i, self.rango)
-            pygame.draw.line(self.pantalla, self.GRIS_CLARO, (x, y), (x2, y2), 1)
-            
-            x, y = self.coordenada_pantalla(-self.rango, i)
-            x2, y2 = self.coordenada_pantalla(self.rango, i)
-            pygame.draw.line(self.pantalla, self.GRIS_CLARO, (x, y), (x2, y2), 1)
+        # Dibuja fondo de cuadrícula dentro del rect del plano (opcional)
+        if self.mostrar_grid:
+            for i in range(-int(self.rango), int(self.rango) + 1, 40):
+                x, y = self.coordenada_pantalla(i, -self.rango)
+                x2, y2 = self.coordenada_pantalla(i, self.rango)
+                pygame.draw.line(self.pantalla, self.GRIS_CLARO, (x, y), (x2, y2), 1)
+
+                x, y = self.coordenada_pantalla(-self.rango, i)
+                x2, y2 = self.coordenada_pantalla(self.rango, i)
+                pygame.draw.line(self.pantalla, self.GRIS_CLARO, (x, y), (x2, y2), 1)
         
         # Dibuja ejes
         self.dibujar_ejes()
@@ -269,18 +361,29 @@ class VistaPlanoCartesiano:
                 color = self.colores_aviones[idx % len(self.colores_aviones)]
                 self.dibujar_historial(avion.obtener_historial(), color)
         
-        # Dibuja aviones
-        ids_pareja = set()
-        if pareja_cercana and pareja_cercana.punto1:
-            ids_pareja = {pareja_cercana.punto1.id, pareja_cercana.punto2.id}
-        
+        # Preparar parejas en riesgo: conjunto de ids y lista
+        parejas_riesgo = parejas_riesgo or []
+        ids_riesgo = set()
+        for p in parejas_riesgo:
+            if p and p.punto1 and p.punto2:
+                ids_riesgo.add(p.punto1.id)
+                ids_riesgo.add(p.punto2.id)
+
+        # No dibujar líneas entre parejas: sólo resaltar puntos en riesgo
+
+        # Dibuja aviones: si forman parte de alguna pareja en riesgo los resaltamos en rojo
         for idx, avion in enumerate(aviones):
             x, y = avion.obtener_posicion()
-            if avion.id_avion in ids_pareja and pareja_cercana and pareja_cercana.distancia <= umbral:
+            if avion.id_avion in ids_riesgo:
                 color = self.ROJO
+                resaltado = True
+            elif pareja_cercana and pareja_cercana.punto1 and avion.id_avion in {pareja_cercana.punto1.id, pareja_cercana.punto2.id} and pareja_cercana.distancia <= umbral:
+                color = self.ROJO
+                resaltado = True
             else:
                 color = self.AMARILLO
-            resaltado = False  # No cambiar tamaño, solo color
+                resaltado = False
+
             self.dibujar_avion(x, y, color, avion.id_avion, avion.angulo, resaltado)
         
         # Dibuja línea de pareja más cercana
@@ -288,10 +391,10 @@ class VistaPlanoCartesiano:
         
         # Desactivar clipping para dibujar la interfaz sin restricciones
         self.pantalla.set_clip(None)
-        
-        # Dibuja interfaz (panel izquierdo)
-        self.dibujar_interfaz(estadisticas, pareja_cercana, stats_algoritmo, colision,
-                      input_mode=input_mode, campos=campos, input_index=input_index)
+
+        # Dibuja interfaz (panel izquierdo) -> pasar también parejas_riesgo y umbral
+        kwargs = dict(input_mode=input_mode, campos=campos, input_index=input_index, parejas_riesgo=parejas_riesgo)
+        self.dibujar_interfaz(estadisticas, pareja_cercana, stats_algoritmo, colision, **kwargs)
 
         pygame.display.flip()
 
@@ -384,6 +487,45 @@ class VistaPlanoCartesiano:
     def obtener_fps(self):
         """Retorna los FPS actuales."""
         return self.reloj.get_fps()
+
+    def ajustar_tamano(self, nuevo_ancho, nuevo_alto):
+        """Ajusta el tamaño de la ventana y recalcula rects/escala.
+
+        Este método debe llamarse cuando el usuario cambia el tamaño
+        de la ventana (por ejemplo, al maximizar)."""
+        # Guardar nuevos tamaños
+        self.ancho = max(200, int(nuevo_ancho))
+        self.alto = max(200, int(nuevo_alto))
+
+        # Recrear la superficie de pantalla manteniendo la bandera RESIZABLE
+        self.pantalla = pygame.display.set_mode((self.ancho, self.alto), pygame.RESIZABLE)
+
+        # Recalcular rectángulo del plano (panel izquierdo mantiene su ancho)
+        self.plano_rect = pygame.Rect(self.left_panel_width, 0, self.ancho - self.left_panel_width, self.alto)
+
+        # Recalcular centro y escala
+        self.centro_x = self.plano_rect.x + self.plano_rect.width // 2
+        self.centro_y = self.plano_rect.y + self.plano_rect.height // 2
+        self._calcular_escala()
+
+        # Ajustar el reloj (no necesario, pero asegurar consistencia)
+        self.reloj = pygame.time.Clock()
+
+    def _calcular_escala(self):
+        """Calcula la escala interna aplicando zoom."""
+        base = (min(self.plano_rect.width, self.plano_rect.height) // 2) / max(1, self.rango)
+        # Aplicar zoom con límites razonables
+        self.zoom = max(0.2, min(self.zoom, 5.0))
+        self.escala = base * self.zoom
+
+    def ajustar_zoom(self, factor):
+        """Ajusta el zoom multiplicando el factor dado (ej. 1.1 para +10%)."""
+        try:
+            self.zoom *= factor
+            # Recalcular escala aplicando nuevo zoom
+            self._calcular_escala()
+        except Exception:
+            pass
     
     def tick(self, fps=60):
         """Controla los FPS."""

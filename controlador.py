@@ -2,9 +2,13 @@
 Controlador: Gestiona la interacción entre el modelo y la vista.
 """
 import pygame
-import sys
 from modelo import GestorAviones
 from vista import VistaPlanoCartesiano
+try:
+    from config import UMBRAL_SCALE, DEBUG_MODE
+except Exception:
+    UMBRAL_SCALE = 1.0
+    DEBUG_MODE = False
 
 
 class ControladorAviones:
@@ -34,7 +38,7 @@ class ControladorAviones:
         self.input_mode = True
         # campos: lista de [clave, valor_str]
         # Todos los campos vacíos al inicio
-        self.param_fields = [['Número de aviones', ''], ['Umbral de NM', '']]
+        self.param_fields = [['NUMERO DE AVIONES', ''], ['UMBRAL DE NM', '']]
         self.input_index = 0
         self.input_buffer = ''
     
@@ -66,6 +70,17 @@ class ControladorAviones:
                             return True
                     return True
 
+            # Manejar redimensionamiento de ventana (maximizar / cambiar tamaño)
+            elif evento.type == pygame.VIDEORESIZE:
+                try:
+                    nuevo_ancho = evento.w
+                    nuevo_alto = evento.h
+                    # Delegar a la vista para recalcular escala y rects
+                    self.vista.ajustar_tamano(nuevo_ancho, nuevo_alto)
+                except Exception:
+                    pass
+                return True
+
             elif evento.type == pygame.KEYDOWN:
                 # Si estamos en modo de entrada de parámetros, procesar texto
                 if self.input_mode:
@@ -90,7 +105,9 @@ class ControladorAviones:
                             # Ignorar los rangos ingresados; siempre usar 120x120 para evitar distorsión
                             # Pero regenerar aviones con la cantidad especificada
                             self.modelo.limpiar_aviones()
-                            self.modelo.generar_aviones_aleatorios(cantidad=n, distancia_minima=max(5, 120 * 0.1))
+                            # Generar aviones permitiendo distancias más pequeñas entre ellos
+                            # para que umbrales bajos (ej. 10) puedan detectar parejas.
+                            self.modelo.generar_aviones_aleatorios(cantidad=n, distancia_minima=5)
                             # Registrar la cantidad inicial y resetear contadores
                             self.modelo.inicial_cantidad = n
                             self.modelo.colisiones_evitadas = 0
@@ -128,11 +145,25 @@ class ControladorAviones:
                 if evento.key == pygame.K_ESCAPE:
                     # Volver a modo de entrada de parámetros
                     self.input_mode = True
-                    self.param_fields = [['Número de aviones', ''], ['Umbral de NM', '']]
+                    self.param_fields = [['NUMERO DE AVIONES', ''], ['UMBRAL DE NM', '']]
                     self.input_index = 0
                     self.modelo.limpiar_aviones()
                     print("Regresando a entrada de parámetros...")
                     return True
+                # Controles de zoom: '+' (o '=') para acercar, '-' para alejar
+                if not self.input_mode:
+                    if evento.key in (pygame.K_EQUALS, pygame.K_KP_PLUS):
+                        try:
+                            self.vista.ajustar_zoom(1.15)
+                        except Exception:
+                            pass
+                        return True
+                    if evento.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+                        try:
+                            self.vista.ajustar_zoom(0.85)
+                        except Exception:
+                            pass
+                        return True
         
         return True
     
@@ -142,6 +173,22 @@ class ControladorAviones:
 
         # Ejecutar algoritmo Dividir y Vencer para encontrar pareja más cercana
         self.modelo.ejecutar_algoritmo_pareja_cercana()
+        # Calcular todas las parejas dentro del umbral actual (riesgo)
+        effective_umbral = (self.umbral or 0) * UMBRAL_SCALE
+        try:
+            self.parejas_riesgo = self.modelo.encontrar_parejas_en_riesgo(effective_umbral)
+        except Exception:
+            # Si algo falla, aseguramos que la variable exista
+            self.parejas_riesgo = []
+
+        # Debug: imprimir resumen de parejas y algunas distancias si está activado
+        if DEBUG_MODE:
+            try:
+                dists = [round(p.distancia, 2) for p in self.parejas_riesgo]
+                dists_sorted = sorted(dists)
+                print(f"[DEBUG] umbral={self.umbral} scale={UMBRAL_SCALE} effective={effective_umbral} -> parejas={len(dists_sorted)} dists={dists_sorted[:10]}")
+            except Exception:
+                print(f"[DEBUG] umbral={self.umbral} scale={UMBRAL_SCALE} effective={effective_umbral} -> parejas={len(self.parejas_riesgo)}")
     
     def obtener_estadisticas(self):
         """Obtiene las estadísticas del sistema."""
@@ -161,6 +208,8 @@ class ControladorAviones:
             aviones = self.modelo.obtener_todos_aviones()
             estadisticas = self.obtener_estadisticas()
             pareja_cercana = self.modelo.obtener_pareja_mas_cercana()
+            # parejas en riesgo calculadas durante `actualizar`
+            parejas_riesgo = getattr(self, 'parejas_riesgo', [])
             stats_algoritmo = self.modelo.obtener_estadisticas_algoritmo()
 
             # Si todos los aviones salieron del plano y aún no reportamos colisiones evitadas,
@@ -173,9 +222,18 @@ class ControladorAviones:
             # Dibujar (vista ahora incluye panel izquierdo donde mostramos entradas)
             campos = [(f[0], f[1]) for f in self.param_fields]
             # Pasamos el estado de input_mode e índices para que la vista pinte los valores en el panel
-            self.vista.dibujar(aviones, estadisticas, pareja_cercana, stats_algoritmo,
-                              self.mostrar_historial, False,
-                              input_mode=self.input_mode, campos=campos, input_index=self.input_index, umbral=self.umbral)
+            kwargs = dict(input_mode=self.input_mode, campos=campos,
+                          input_index=self.input_index, umbral=self.umbral,
+                          parejas_riesgo=parejas_riesgo)
+            self.vista.dibujar(
+                aviones,
+                estadisticas,
+                pareja_cercana,
+                stats_algoritmo,
+                self.mostrar_historial,
+                False,
+                **kwargs,
+            )
             
             # Controlar FPS
             self.vista.tick(self.fps)

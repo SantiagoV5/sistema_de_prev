@@ -3,7 +3,7 @@ Configuración: Centraliza los parámetros de la aplicación.
 """
 
 # ============== CONFIGURACIÓN DE VENTANA ==============
-ANCHO_VENTANA = 900
+ANCHO_VENTANA = 1100
 ALTO_VENTANA = 700
 
 # ============== CONFIGURACIÓN DEL PLANO ==============
@@ -19,6 +19,13 @@ DISTANCIA_COLISION = 15  # Distancia para detectar colisión
 VELOCIDAD_MINIMA = 0.5
 VELOCIDAD_MAXIMA = 2.0
 FPS = 60  # Frames por segundo
+
+# ============== INTERFAZ / FUENTES ==============
+LEFT_PANEL_WIDTH = 320
+FONT_SIZE_GRANDE = 28
+FONT_SIZE_NORMAL = 20
+FONT_SIZE_PEQUENA = 16
+FONT_SIZE_MINI = 10
 
 # ============== CONFIGURACIÓN DE COLORES ==============
 COLORES_AVIONES = [
@@ -43,7 +50,7 @@ COLORES = {
 
 # ============== CONFIGURACIÓN DE PANTALLA ==============
 TITULO_VENTANA = "Sistema de Aviones - Plano Cartesiano (MVC)"
-MOSTRAR_GRID = True
+MOSTRAR_GRID = False
 MOSTRAR_ETIQUETAS = True
 
 # ============== CONFIGURACIÓN DE MOVIMIENTO ==============
@@ -70,3 +77,7 @@ CONTROLES:
 # ============== CONFIGURACIÓN AVANZADA ==============
 DEBUG_MODE = False  # Modo depuración (imprime más información)
 LIMITE_FRAMES_HISTORIAL = 500  # Máximo de frames en el historial antes de limpiar
+# Factor multiplicador para interpretar el umbral ingresado.
+# Por defecto 1.0: el umbral se usa tal cual en las unidades del modelo.
+# Si quieres que el umbral sea más permisivo, aumenta este valor (ej. 2.0).
+UMBRAL_SCALE = 1.0
